@@ -126,35 +126,51 @@ def generate_texture(size, base_color, seed, planet_type):
             
             # Use 3D noise sampling on the sphere surface
             # This eliminates seams and vertical line artifacts
-            # by sampling a continuous 3D noise field
-            scale = 3.0
+            # Add seed-based offset to break symmetry and prevent repeating patterns
+            np.random.seed(seed)
+            offset_x = np.random.uniform(-1000, 1000)
+            offset_y = np.random.uniform(-1000, 1000)
+            offset_z = np.random.uniform(-1000, 1000)
             
             # Base elevation noise - large scale terrain
-            # Sample directly at the 3D point on sphere surface
+            # Sample at offset positions to avoid repeating patterns
+            scale = 5.0
             elevation = pnoise3(
-                nx * scale,
-                ny * scale,
-                nz * scale,
-                octaves=6,
+                nx * scale + offset_x,
+                ny * scale + offset_y,
+                nz * scale + offset_z,
+                octaves=8,
                 persistence=0.5,
                 lacunarity=2.0,
                 base=seed
             )
             
-            # Detail noise - small scale features
-            detail_scale = 8.0
-            detail = pnoise3(
-                nx * detail_scale,
-                ny * detail_scale,
-                nz * detail_scale,
-                octaves=4,
+            # Medium scale features
+            mid_scale = 12.0
+            mid_detail = pnoise3(
+                nx * mid_scale + offset_x * 0.5,
+                ny * mid_scale + offset_y * 0.5,
+                nz * mid_scale + offset_z * 0.5,
+                octaves=5,
                 persistence=0.6,
-                lacunarity=2.5,
-                base=seed + 50
-            ) * 0.3
+                lacunarity=2.3,
+                base=seed + 100
+            ) * 0.4
             
-            # Combine elevation and detail
-            height = elevation + detail
+            # Fine detail noise - small scale features
+            detail_scale = 20.0
+            detail = pnoise3(
+                nx * detail_scale + offset_x * 0.25,
+                ny * detail_scale + offset_y * 0.25,
+                nz * detail_scale + offset_z * 0.25,
+                octaves=4,
+                persistence=0.7,
+                lacunarity=2.5,
+                base=seed + 200
+            ) * 0.2
+            
+            # Combine all noise layers
+            height = elevation + mid_detail + detail
             
             # For rendering, we still need UV coordinates for certain effects
             u = 0.5 + math.atan2(nx, nz) / (2 * math.pi)
@@ -337,15 +353,20 @@ def add_cloud_layer(texture, size, seed):
                 continue
             nz = math.sqrt(z_squared)
             
-            # Use 3D noise for clouds to avoid seams
-            cloud_scale = 4.0
+            # Use 3D noise for clouds with offset to avoid repeating patterns
+            np.random.seed(seed + 1000)
+            cloud_offset_x = np.random.uniform(-500, 500)
+            cloud_offset_y = np.random.uniform(-500, 500)
+            cloud_offset_z = np.random.uniform(-500, 500)
+            
+            cloud_scale = 6.0
             cloud_noise = pnoise3(
-                nx * cloud_scale,
-                ny * cloud_scale,
-                nz * cloud_scale,
-                octaves=4,
-                persistence=0.5,
-                lacunarity=2.0,
+                nx * cloud_scale + cloud_offset_x,
+                ny * cloud_scale + cloud_offset_y,
+                nz * cloud_scale + cloud_offset_z,
+                octaves=5,
+                persistence=0.55,
+                lacunarity=2.2,
                 base=seed + 500
             )
             
