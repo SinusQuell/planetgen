@@ -12,7 +12,7 @@ import platform
 import subprocess
 from PIL import Image, ImageDraw
 import numpy as np
-from noise import pnoise2
+from noise import pnoise2, pnoise3
 
 
 # Define planet types with characteristics
@@ -124,32 +124,29 @@ def generate_texture(size, base_color, seed, planet_type):
                 continue
             nz = math.sqrt(z_squared)
             
-            # Calculate UV coordinates using proper spherical mapping
-            # This avoids distortion at poles
-            # U wraps around horizontally (longitude)
-            # V goes vertically (latitude)
-            u = 0.5 + math.atan2(nx, nz) / (2 * math.pi)
-            v = 0.5 - math.asin(ny) / math.pi
-            
-            # Sample noise on a regular 2D grid using UV coordinates
-            # This creates natural terrain without convergence/stretching
-            scale = 6.0
+            # Use 3D noise sampling on the sphere surface
+            # This eliminates seams and vertical line artifacts
+            # by sampling a continuous 3D noise field
+            scale = 3.0
             
             # Base elevation noise - large scale terrain
-            elevation = pnoise2(
-                u * scale,
-                v * scale,
+            # Sample directly at the 3D point on sphere surface
+            elevation = pnoise3(
+                nx * scale,
+                ny * scale,
+                nz * scale,
                 octaves=6,
                 persistence=0.5,
                 lacunarity=2.0,
                 base=seed
             )
             
-            # Detail noise - small scale features  
-            detail_scale = 15.0
-            detail = pnoise2(
-                u * detail_scale,
-                v * detail_scale,
+            # Detail noise - small scale features
+            detail_scale = 8.0
+            detail = pnoise3(
+                nx * detail_scale,
+                ny * detail_scale,
+                nz * detail_scale,
                 octaves=4,
                 persistence=0.6,
                 lacunarity=2.5,
@@ -158,6 +155,10 @@ def generate_texture(size, base_color, seed, planet_type):
             
             # Combine elevation and detail
             height = elevation + detail
+            
+            # For rendering, we still need UV coordinates for certain effects
+            u = 0.5 + math.atan2(nx, nz) / (2 * math.pi)
+            v = 0.5 - math.asin(ny) / math.pi
             
             # Apply planet-type-specific rendering
             r, g, b = render_planet_surface(height, planet_type, base_color, u, v, seed)
@@ -336,14 +337,12 @@ def add_cloud_layer(texture, size, seed):
                 continue
             nz = math.sqrt(z_squared)
             
-            # Calculate UV coordinates
-            u = 0.5 + math.atan2(nx, nz) / (2 * math.pi)
-            v = 0.5 - math.asin(ny) / math.pi
-            
-            cloud_scale = 8.0
-            cloud_noise = pnoise2(
-                u * cloud_scale,
-                v * cloud_scale,
+            # Use 3D noise for clouds to avoid seams
+            cloud_scale = 4.0
+            cloud_noise = pnoise3(
+                nx * cloud_scale,
+                ny * cloud_scale,
+                nz * cloud_scale,
                 octaves=4,
                 persistence=0.5,
                 lacunarity=2.0,
