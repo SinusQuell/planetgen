@@ -94,99 +94,259 @@ def generate_name():
 
 
 def generate_texture(size, base_color, seed, planet_type):
-    """Generate procedural texture using Perlin noise with layered details"""
+    """Generate procedural texture using spherical UV mapping for proper noise distribution"""
     np.random.seed(seed)
-    scale = 40.0
-    octaves = 8
-    persistence = 0.55
-    lacunarity = 2.2
     
     texture = np.zeros((size, size, 3), dtype=np.uint8)
+    center = size / 2
     
-    # Generate base elevation/terrain layer
+    # Generate elevation map using spherical coordinates
     for y in range(size):
         for x in range(size):
-            # Primary terrain noise
-            noise_value = pnoise2(
-                x / scale,
-                y / scale,
-                octaves=octaves,
-                persistence=persistence,
-                lacunarity=lacunarity,
-                repeatx=1024,
-                repeaty=1024,
+            # Calculate position relative to center
+            dx = x - center
+            dy = y - center
+            dist = math.sqrt(dx * dx + dy * dy)
+            
+            # Skip if outside circle (will be masked later anyway)
+            if dist > center:
+                continue
+            
+            # Convert to spherical UV coordinates for proper wrapping
+            # This prevents vertical line artifacts
+            theta = math.atan2(dy, dx)  # Angle around the sphere
+            phi = math.asin(min(1.0, max(-1.0, dist / center)))  # Angle from pole
+            
+            # Sample noise using spherical coordinates
+            # Use 3D noise sampling on sphere surface for natural look
+            sphere_x = math.cos(theta) * math.cos(phi)
+            sphere_y = math.sin(theta) * math.cos(phi)
+            sphere_z = math.sin(phi)
+            
+            scale = 2.0
+            # Base elevation noise - large scale terrain
+            elevation = pnoise2(
+                sphere_x * scale,
+                sphere_y * scale,
+                octaves=6,
+                persistence=0.5,
+                lacunarity=2.0,
                 base=seed
-            )
+            ) + pnoise2(
+                sphere_z * scale,
+                sphere_x * scale,
+                octaves=6,
+                persistence=0.5,
+                lacunarity=2.0,
+                base=seed + 1
+            ) * 0.5
             
-            # Secondary detail noise for fine features
-            detail_noise = pnoise2(
-                x / (scale * 0.3),
-                y / (scale * 0.3),
+            # Detail noise - small scale features
+            detail_scale = 6.0
+            detail = pnoise2(
+                sphere_x * detail_scale,
+                sphere_y * detail_scale,
                 octaves=4,
-                persistence=0.4,
+                persistence=0.6,
                 lacunarity=2.5,
-                repeatx=1024,
-                repeaty=1024,
-                base=seed + 100
-            )
+                base=seed + 50
+            ) * 0.3
             
-            # Combine noises
-            combined_noise = noise_value * 0.7 + detail_noise * 0.3
+            # Combine elevation and detail
+            height = elevation + detail
             
-            # Apply different effects based on planet type
-            if planet_type in ["ocean", "forest"]:
-                # Water/land distinction
-                if combined_noise < -0.1:
-                    # Ocean areas - darker blue
-                    variation = int(combined_noise * 60)
-                    r = min(255, max(0, int(base_color[0] * 0.4) + variation))
-                    g = min(255, max(0, int(base_color[1] * 0.6) + variation))
-                    b = min(255, max(0, int(base_color[2] * 1.2) + variation))
-                else:
-                    # Land areas
-                    variation = int(combined_noise * 100)
-                    if planet_type == "forest":
-                        r = min(255, max(0, base_color[0] + variation))
-                        g = min(255, max(0, base_color[1] + variation))
-                        b = min(255, max(0, int(base_color[2] * 0.7) + variation))
-                    else:
-                        r = min(255, max(0, int(base_color[0] * 1.5) + variation))
-                        g = min(255, max(0, int(base_color[1] * 1.3) + variation))
-                        b = min(255, max(0, base_color[2] + variation))
-            else:
-                # Other planet types - enhanced variation
-                variation = int(combined_noise * 120)
-                r = min(255, max(0, base_color[0] + variation))
-                g = min(255, max(0, base_color[1] + variation))
-                b = min(255, max(0, base_color[2] + variation))
-            
+            # Apply planet-type-specific rendering
+            r, g, b = render_planet_surface(height, planet_type, base_color, sphere_x, sphere_y, sphere_z, seed)
             texture[y, x] = (r, g, b)
     
     # Add cloud layer for suitable planets
-    if planet_type in ["ocean", "forest", "ice"]:
-        cloud_scale = 80.0
-        for y in range(size):
-            for x in range(size):
-                cloud_noise = pnoise2(
-                    x / cloud_scale,
-                    y / cloud_scale,
-                    octaves=4,
-                    persistence=0.5,
-                    lacunarity=2.0,
-                    repeatx=1024,
-                    repeaty=1024,
-                    base=seed + 500
-                )
-                # Add white clouds where noise is high
-                if cloud_noise > 0.3:
-                    cloud_intensity = int((cloud_noise - 0.3) * 400)
-                    texture[y, x] = (
-                        min(255, int(texture[y, x][0]) + cloud_intensity),
-                        min(255, int(texture[y, x][1]) + cloud_intensity),
-                        min(255, int(texture[y, x][2]) + cloud_intensity)
-                    )
+    if planet_type in ["ocean", "forest", "ice", "desert"]:
+        add_cloud_layer(texture, size, seed)
     
     return texture
+
+
+def render_planet_surface(height, planet_type, base_color, sphere_x, sphere_y, sphere_z, seed):
+    """Render surface color based on height and planet type"""
+    
+    if planet_type == "ocean":
+        # Ocean world with water, beaches, and land
+        if height < -0.2:
+            # Deep ocean - dark blue
+            return (0, 40, 120)
+        elif height < -0.05:
+            # Shallow ocean - lighter blue
+            return (0, 80, 180)
+        elif height < 0.0:
+            # Beach - sandy
+            return (220, 200, 140)
+        elif height < 0.3:
+            # Lowland - green
+            variation = int(height * 80)
+            return (60 + variation, 140 + variation, 70)
+        else:
+            # Mountains - gray/white
+            rock_color = int(150 + height * 100)
+            return (rock_color, rock_color, rock_color)
+    
+    elif planet_type == "forest":
+        # Forest world with varied green terrain
+        if height < -0.1:
+            # Water bodies - blue
+            return (30, 80, 150)
+        elif height < 0.0:
+            # Wetlands - dark green
+            return (40, 100, 50)
+        elif height < 0.4:
+            # Forest - multiple shades of green
+            green_var = int(height * 150)
+            return (30 + green_var, 120 + green_var, 40 + green_var)
+        else:
+            # Mountain peaks - gray/brown
+            return (120, 110, 100)
+    
+    elif planet_type == "lava":
+        # Lava world with molten rock and dark crust
+        if height < -0.1:
+            # Lava pools - bright orange/red
+            return (255, 100, 0)
+        elif height < 0.1:
+            # Hot crust - dark red
+            return (180, 40, 0)
+        else:
+            # Cooled rock - very dark brown/black
+            dark = int(20 + height * 40)
+            return (dark, dark // 2, 0)
+    
+    elif planet_type == "volcanic":
+        # Volcanic world - similar to lava but more rock
+        if height < -0.2:
+            # Lava - bright
+            return (255, 80, 20)
+        elif height < 0.0:
+            # Recent lava - dark red
+            return (140, 30, 10)
+        else:
+            # Volcanic rock - black/dark gray
+            rock = int(40 + height * 60)
+            return (rock, rock // 2, rock // 4)
+    
+    elif planet_type == "ice":
+        # Ice world with varied ice and snow
+        if height < -0.1:
+            # Deep ice - blue tint
+            return (180, 200, 255)
+        elif height < 0.2:
+            # Ice plains - white with blue
+            ice_var = int(height * 40)
+            return (220 + ice_var, 230 + ice_var, 255)
+        else:
+            # Ice mountains - pure white
+            return (250, 250, 255)
+    
+    elif planet_type == "desert":
+        # Desert world with sand and rock
+        if height < -0.15:
+            # Oasis/dry lake - darker
+            return (160, 130, 80)
+        elif height < 0.3:
+            # Sand dunes - yellow/tan
+            sand_var = int(height * 60)
+            return (210 + sand_var, 180 + sand_var, 100 + sand_var)
+        else:
+            # Rocky outcrops - brown
+            return (150, 120, 80)
+    
+    elif planet_type == "barren":
+        # Barren rocky world
+        variation = int(height * 100)
+        return (
+            min(255, max(0, base_color[0] + variation)),
+            min(255, max(0, base_color[1] + variation)),
+            min(255, max(0, base_color[2] + variation))
+        )
+    
+    elif planet_type == "gas_giant":
+        # Gas giant with bands
+        band_noise = pnoise2(sphere_x * 8, sphere_y * 0.5, octaves=3, base=seed + 200)
+        variation = int(band_noise * 100)
+        return (
+            min(255, max(0, base_color[0] + variation)),
+            min(255, max(0, base_color[1] + variation)),
+            min(255, max(0, base_color[2] + variation))
+        )
+    
+    elif planet_type == "toxic":
+        # Toxic world with varied green
+        if height < 0.0:
+            # Toxic pools
+            return (80, 255, 100)
+        else:
+            # Toxic land
+            variation = int(height * 80)
+            return (
+                min(255, max(0, 60 + variation)),
+                min(255, max(0, 200 + variation)),
+                min(255, max(0, 80 + variation))
+            )
+    
+    elif planet_type == "crystal":
+        # Crystal world with shimmering colors
+        variation = int(height * 100)
+        return (
+            min(255, max(0, 160 + variation)),
+            min(255, max(0, 230 + variation)),
+            min(255, max(0, 250 + variation))
+        )
+    
+    else:
+        # Default rendering
+        variation = int(height * 100)
+        return (
+            min(255, max(0, base_color[0] + variation)),
+            min(255, max(0, base_color[1] + variation)),
+            min(255, max(0, base_color[2] + variation))
+        )
+
+
+def add_cloud_layer(texture, size, seed):
+    """Add clouds to the texture"""
+    center = size / 2
+    
+    for y in range(size):
+        for x in range(size):
+            dx = x - center
+            dy = y - center
+            dist = math.sqrt(dx * dx + dy * dy)
+            
+            if dist > center:
+                continue
+            
+            # Spherical UV for clouds
+            theta = math.atan2(dy, dx)
+            phi = math.asin(min(1.0, max(-1.0, dist / center)))
+            
+            sphere_x = math.cos(theta) * math.cos(phi)
+            sphere_y = math.sin(theta) * math.cos(phi)
+            
+            cloud_scale = 4.0
+            cloud_noise = pnoise2(
+                sphere_x * cloud_scale,
+                sphere_y * cloud_scale,
+                octaves=4,
+                persistence=0.5,
+                lacunarity=2.0,
+                base=seed + 500
+            )
+            
+            # Add white clouds where noise is high
+            if cloud_noise > 0.2:
+                cloud_intensity = int((cloud_noise - 0.2) * 300)
+                texture[y, x] = (
+                    min(255, int(texture[y, x][0]) + cloud_intensity),
+                    min(255, int(texture[y, x][1]) + cloud_intensity),
+                    min(255, int(texture[y, x][2]) + cloud_intensity)
+                )
 
 
 def render_planet_image(size=512):
@@ -239,16 +399,18 @@ def render_planet_image(size=512):
                 # Set full opacity for planet surface
                 planet_array[y, x, 3] = 255
     
-    planet = Image.fromarray(planet_array, 'RGBA')
-    
-    # Add rings if applicable
+    # Add rings if applicable - must do BEFORE converting to RGBA to layer properly
     if has_rings:
-        # Create a separate layer for rings to avoid transparency issues
-        ring_layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-        ring_draw = ImageDraw.Draw(ring_layer)
-        
         center_x = size / 2
         center_y = size / 2
+        
+        # Create back ring layer (behind planet)
+        back_ring_layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        back_ring_draw = ImageDraw.Draw(back_ring_layer)
+        
+        # Create front ring layer (in front of planet)
+        front_ring_layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        front_ring_draw = ImageDraw.Draw(front_ring_layer)
         
         # Ring colors with variations
         ring_colors = [
@@ -262,24 +424,48 @@ def render_planet_image(size=512):
         
         ring_inner_radius = radius * 1.4
         ring_outer_radius = radius * 2.0
-        num_ring_bands = 20  # Draw multiple ring bands for thickness
+        num_ring_bands = 20
         
+        # Draw rings
         for i in range(num_ring_bands):
-            # Calculate ring position with slight variations
             progress = i / num_ring_bands
             ring_radius = ring_inner_radius + (ring_outer_radius - ring_inner_radius) * progress
             ring_color = ring_colors[i % len(ring_colors)]
             
-            # Draw thick ring band
-            ring_draw.ellipse(
-                (center_x - ring_radius, center_y - ring_radius * 0.25,
-                 center_x + ring_radius, center_y + ring_radius * 0.25),
-                outline=ring_color,
-                width=10
-            )
+            # For back rings: draw bottom half only (behind planet)
+            # Create a mask for bottom half
+            for draw_layer, y_range in [(back_ring_draw, (center_y, size)), (front_ring_draw, (0, center_y))]:
+                # Draw full ring
+                draw_layer.ellipse(
+                    (center_x - ring_radius, center_y - ring_radius * 0.25,
+                     center_x + ring_radius, center_y + ring_radius * 0.25),
+                    outline=ring_color,
+                    width=10
+                )
         
-        # Composite rings over planet
-        planet = Image.alpha_composite(planet, ring_layer)
+        # Mask the back rings to only show bottom half
+        back_ring_array = np.array(back_ring_layer)
+        for y in range(int(center_y)):
+            back_ring_array[y, :, 3] = 0  # Make top half transparent
+        back_ring_layer = Image.fromarray(back_ring_array, 'RGBA')
+        
+        # Mask the front rings to only show top half
+        front_ring_array = np.array(front_ring_layer)
+        for y in range(int(center_y), size):
+            front_ring_array[y, :, 3] = 0  # Make bottom half transparent
+        front_ring_layer = Image.fromarray(front_ring_array, 'RGBA')
+        
+        # Composite: back rings, then planet, then front rings
+        final_image = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+        final_image = Image.alpha_composite(final_image, back_ring_layer)
+        
+        planet = Image.fromarray(planet_array, 'RGBA')
+        final_image = Image.alpha_composite(final_image, planet)
+        final_image = Image.alpha_composite(final_image, front_ring_layer)
+        
+        planet = final_image
+    else:
+        planet = Image.fromarray(planet_array, 'RGBA')
     
     # Create metadata
     metadata = {
