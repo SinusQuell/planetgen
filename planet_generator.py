@@ -101,6 +101,14 @@ def generate_texture(size, base_color, seed, planet_type):
     center = size / 2
     radius = center
     
+    # Generate unique offsets once per planet (not per pixel!)
+    offset_x = np.random.uniform(-1000, 1000)
+    offset_y = np.random.uniform(-1000, 1000)
+    offset_z = np.random.uniform(-1000, 1000)
+    
+    # Add rotation angles for additional variation
+    rotation_seed = np.random.uniform(0, 100)
+    
     # Generate elevation map using proper UV texture mapping
     for y in range(size):
         for x in range(size):
@@ -124,21 +132,45 @@ def generate_texture(size, base_color, seed, planet_type):
                 continue
             nz = math.sqrt(z_squared)
             
-            # Use 3D noise sampling on the sphere surface
-            # This eliminates seams and vertical line artifacts
-            # Add seed-based offset to break symmetry and prevent repeating patterns
-            np.random.seed(seed)
-            offset_x = np.random.uniform(-1000, 1000)
-            offset_y = np.random.uniform(-1000, 1000)
-            offset_z = np.random.uniform(-1000, 1000)
+            # Use 3D noise sampling with domain warping to eliminate patterns
+            # Domain warping: use noise to distort the coordinates before sampling
+            warp_scale = 2.0
+            warp_x = pnoise3(
+                nx * warp_scale + rotation_seed,
+                ny * warp_scale + rotation_seed,
+                nz * warp_scale + rotation_seed,
+                octaves=3,
+                base=seed + 1000
+            ) * 0.5
+            
+            warp_y = pnoise3(
+                nx * warp_scale + rotation_seed + 50,
+                ny * warp_scale + rotation_seed + 50,
+                nz * warp_scale + rotation_seed + 50,
+                octaves=3,
+                base=seed + 1100
+            ) * 0.5
+            
+            warp_z = pnoise3(
+                nx * warp_scale + rotation_seed + 100,
+                ny * warp_scale + rotation_seed + 100,
+                nz * warp_scale + rotation_seed + 100,
+                octaves=3,
+                base=seed + 1200
+            ) * 0.5
+            
+            # Apply warping to coordinates
+            warped_nx = nx + warp_x
+            warped_ny = ny + warp_y
+            warped_nz = nz + warp_z
             
             # Base elevation noise - large scale terrain
-            # Sample at offset positions to avoid repeating patterns
+            # Use warped coordinates with offsets
             scale = 5.0
             elevation = pnoise3(
-                nx * scale + offset_x,
-                ny * scale + offset_y,
-                nz * scale + offset_z,
+                warped_nx * scale + offset_x,
+                warped_ny * scale + offset_y,
+                warped_nz * scale + offset_z,
                 octaves=8,
                 persistence=0.5,
                 lacunarity=2.0,
@@ -148,9 +180,9 @@ def generate_texture(size, base_color, seed, planet_type):
             # Medium scale features
             mid_scale = 12.0
             mid_detail = pnoise3(
-                nx * mid_scale + offset_x * 0.5,
-                ny * mid_scale + offset_y * 0.5,
-                nz * mid_scale + offset_z * 0.5,
+                warped_nx * mid_scale + offset_x * 0.5,
+                warped_ny * mid_scale + offset_y * 0.5,
+                warped_nz * mid_scale + offset_z * 0.5,
                 octaves=5,
                 persistence=0.6,
                 lacunarity=2.3,
@@ -160,9 +192,9 @@ def generate_texture(size, base_color, seed, planet_type):
             # Fine detail noise - small scale features
             detail_scale = 20.0
             detail = pnoise3(
-                nx * detail_scale + offset_x * 0.25,
-                ny * detail_scale + offset_y * 0.25,
-                nz * detail_scale + offset_z * 0.25,
+                warped_nx * detail_scale + offset_x * 0.25,
+                warped_ny * detail_scale + offset_y * 0.25,
+                warped_nz * detail_scale + offset_z * 0.25,
                 octaves=4,
                 persistence=0.7,
                 lacunarity=2.5,
@@ -335,6 +367,13 @@ def add_cloud_layer(texture, size, seed):
     center = size / 2
     radius = center
     
+    # Generate cloud offsets once per planet
+    np.random.seed(seed + 1000)
+    cloud_offset_x = np.random.uniform(-500, 500)
+    cloud_offset_y = np.random.uniform(-500, 500)
+    cloud_offset_z = np.random.uniform(-500, 500)
+    cloud_rotation = np.random.uniform(0, 100)
+    
     for y in range(size):
         for x in range(size):
             dx = x - center
@@ -353,17 +392,26 @@ def add_cloud_layer(texture, size, seed):
                 continue
             nz = math.sqrt(z_squared)
             
-            # Use 3D noise for clouds with offset to avoid repeating patterns
-            np.random.seed(seed + 1000)
-            cloud_offset_x = np.random.uniform(-500, 500)
-            cloud_offset_y = np.random.uniform(-500, 500)
-            cloud_offset_z = np.random.uniform(-500, 500)
+            # Domain warping for clouds
+            cloud_warp_scale = 3.0
+            cloud_warp = pnoise3(
+                nx * cloud_warp_scale + cloud_rotation,
+                ny * cloud_warp_scale + cloud_rotation,
+                nz * cloud_warp_scale + cloud_rotation,
+                octaves=2,
+                base=seed + 2000
+            ) * 0.3
+            
+            # Apply warping
+            warped_cloud_nx = nx + cloud_warp
+            warped_cloud_ny = ny + cloud_warp
+            warped_cloud_nz = nz + cloud_warp
             
             cloud_scale = 6.0
             cloud_noise = pnoise3(
-                nx * cloud_scale + cloud_offset_x,
-                ny * cloud_scale + cloud_offset_y,
-                nz * cloud_scale + cloud_offset_z,
+                warped_cloud_nx * cloud_scale + cloud_offset_x,
+                warped_cloud_ny * cloud_scale + cloud_offset_y,
+                warped_cloud_nz * cloud_scale + cloud_offset_z,
                 octaves=5,
                 persistence=0.55,
                 lacunarity=2.2,
