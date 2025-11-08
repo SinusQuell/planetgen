@@ -454,16 +454,16 @@ def render_planet_image(size=512):
                     width=10
                 )
         
-        # Mask the back rings to only show BOTTOM half (behind planet - far side)
+        # Mask the back rings to only show TOP half (behind planet - upper/far side)
         back_ring_array = np.array(back_ring_layer)
-        for y in range(int(center_y)):
-            back_ring_array[y, :, 3] = 0  # Make top half transparent
+        for y in range(int(center_y), size):
+            back_ring_array[y, :, 3] = 0  # Make bottom half transparent
         back_ring_layer = Image.fromarray(back_ring_array, 'RGBA')
         
-        # Mask the front rings to only show TOP half (in front of planet - near side)
+        # Mask the front rings to only show BOTTOM half (in front of planet - lower/near side)
         front_ring_array = np.array(front_ring_layer)
-        for y in range(int(center_y), size):
-            front_ring_array[y, :, 3] = 0  # Make bottom half transparent
+        for y in range(int(center_y)):
+            front_ring_array[y, :, 3] = 0  # Make top half transparent
         front_ring_layer = Image.fromarray(front_ring_array, 'RGBA')
         
         # Composite: back rings, then planet, then front rings
