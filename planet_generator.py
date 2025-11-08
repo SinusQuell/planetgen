@@ -181,9 +181,9 @@ def generate_texture(size, base_color, seed, planet_type):
                 if cloud_noise > 0.3:
                     cloud_intensity = int((cloud_noise - 0.3) * 400)
                     texture[y, x] = (
-                        min(255, texture[y, x][0] + cloud_intensity),
-                        min(255, texture[y, x][1] + cloud_intensity),
-                        min(255, texture[y, x][2] + cloud_intensity)
+                        min(255, int(texture[y, x][0]) + cloud_intensity),
+                        min(255, int(texture[y, x][1]) + cloud_intensity),
+                        min(255, int(texture[y, x][2]) + cloud_intensity)
                     )
     
     return texture
@@ -229,29 +229,13 @@ def render_planet_image(size=512):
     mask_array = np.array(mask)
     planet_array = np.zeros((size, size, 4), dtype=np.uint8)
     
-    center_x = size / 2
-    center_y = size / 2
-    
     # Apply texture and full opacity where mask is active
+    # Keep it clean - no shadows, no glows, just the planet texture
     for y in range(size):
         for x in range(size):
             if mask_array[y, x] > 0:
                 # Set RGB from texture
                 planet_array[y, x, 0:3] = img_array[y, x]
-                
-                # Add subtle edge darkening for 3D effect
-                dx = x - center_x
-                dy = y - center_y
-                dist_from_center = math.sqrt(dx * dx + dy * dy)
-                edge_factor = dist_from_center / radius
-                
-                if edge_factor > 0.75:
-                    # Darken edges slightly
-                    darken = int((edge_factor - 0.75) * 180)
-                    planet_array[y, x, 0] = max(0, planet_array[y, x, 0] - darken)
-                    planet_array[y, x, 1] = max(0, planet_array[y, x, 1] - darken)
-                    planet_array[y, x, 2] = max(0, planet_array[y, x, 2] - darken)
-                
                 # Set full opacity for planet surface
                 planet_array[y, x, 3] = 255
     
@@ -262,6 +246,9 @@ def render_planet_image(size=512):
         # Create a separate layer for rings to avoid transparency issues
         ring_layer = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         ring_draw = ImageDraw.Draw(ring_layer)
+        
+        center_x = size / 2
+        center_y = size / 2
         
         # Ring colors with variations
         ring_colors = [
