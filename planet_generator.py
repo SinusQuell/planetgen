@@ -94,14 +94,14 @@ def generate_name():
 
 
 def generate_texture(size, base_color, seed, planet_type):
-    """Generate procedural texture using proper spherical projection from side view"""
+    """Generate procedural texture using equirectangular UV mapping on sphere"""
     np.random.seed(seed)
     
     texture = np.zeros((size, size, 3), dtype=np.uint8)
     center = size / 2
     radius = center
     
-    # Generate elevation map using side-view spherical projection
+    # Generate elevation map using proper UV texture mapping
     for y in range(size):
         for x in range(size):
             # Calculate position relative to center
@@ -112,10 +112,6 @@ def generate_texture(size, base_color, seed, planet_type):
             # Skip if outside circle
             if dist > radius:
                 continue
-            
-            # Project pixel onto sphere surface (side view / equatorial view)
-            # Map x to longitude (theta) and y to latitude (phi)
-            # This creates a side view of the planet, not a pole view
             
             # Normalize coordinates to [-1, 1]
             nx = dx / radius
@@ -128,20 +124,21 @@ def generate_texture(size, base_color, seed, planet_type):
                 continue
             nz = math.sqrt(z_squared)
             
-            # Convert to spherical coordinates for the side view
-            # Longitude wraps around horizontally
-            # Latitude varies vertically
-            longitude = math.atan2(nz, nx)  # Wraps around the sphere
-            latitude = math.asin(ny)  # Vertical position
+            # Calculate UV coordinates using proper spherical mapping
+            # This avoids distortion at poles
+            # U wraps around horizontally (longitude)
+            # V goes vertically (latitude)
+            u = 0.5 + math.atan2(nx, nz) / (2 * math.pi)
+            v = 0.5 - math.asin(ny) / math.pi
             
-            # Sample noise using longitude and latitude directly
-            # This creates a natural 2D noise map wrapped around the sphere
-            scale = 3.0
+            # Sample noise on a regular 2D grid using UV coordinates
+            # This creates natural terrain without convergence/stretching
+            scale = 6.0
             
             # Base elevation noise - large scale terrain
             elevation = pnoise2(
-                longitude * scale,
-                latitude * scale,
+                u * scale,
+                v * scale,
                 octaves=6,
                 persistence=0.5,
                 lacunarity=2.0,
@@ -149,10 +146,10 @@ def generate_texture(size, base_color, seed, planet_type):
             )
             
             # Detail noise - small scale features  
-            detail_scale = 8.0
+            detail_scale = 15.0
             detail = pnoise2(
-                longitude * detail_scale,
-                latitude * detail_scale,
+                u * detail_scale,
+                v * detail_scale,
                 octaves=4,
                 persistence=0.6,
                 lacunarity=2.5,
@@ -163,7 +160,7 @@ def generate_texture(size, base_color, seed, planet_type):
             height = elevation + detail
             
             # Apply planet-type-specific rendering
-            r, g, b = render_planet_surface(height, planet_type, base_color, longitude, latitude, seed)
+            r, g, b = render_planet_surface(height, planet_type, base_color, u, v, seed)
             texture[y, x] = (r, g, b)
     
     # Add cloud layer for suitable planets
@@ -173,7 +170,7 @@ def generate_texture(size, base_color, seed, planet_type):
     return texture
 
 
-def render_planet_surface(height, planet_type, base_color, longitude, latitude, seed):
+def render_planet_surface(height, planet_type, base_color, u, v, seed):
     """Render surface color based on height and planet type"""
     
     if planet_type == "ocean":
@@ -274,8 +271,8 @@ def render_planet_surface(height, planet_type, base_color, longitude, latitude, 
         )
     
     elif planet_type == "gas_giant":
-        # Gas giant with bands (horizontal bands using latitude)
-        band_noise = pnoise2(longitude * 2, latitude * 0.5, octaves=3, base=seed + 200)
+        # Gas giant with bands (horizontal bands using v coordinate)
+        band_noise = pnoise2(u * 4, v * 0.5, octaves=3, base=seed + 200)
         variation = int(band_noise * 100)
         return (
             min(255, max(0, base_color[0] + variation)),
@@ -330,7 +327,7 @@ def add_cloud_layer(texture, size, seed):
             if dist > radius:
                 continue
             
-            # Use same side-view projection as terrain
+            # Use same UV mapping as terrain
             nx = dx / radius
             ny = dy / radius
             
@@ -339,13 +336,14 @@ def add_cloud_layer(texture, size, seed):
                 continue
             nz = math.sqrt(z_squared)
             
-            longitude = math.atan2(nz, nx)
-            latitude = math.asin(ny)
+            # Calculate UV coordinates
+            u = 0.5 + math.atan2(nx, nz) / (2 * math.pi)
+            v = 0.5 - math.asin(ny) / math.pi
             
-            cloud_scale = 4.0
+            cloud_scale = 8.0
             cloud_noise = pnoise2(
-                longitude * cloud_scale,
-                latitude * cloud_scale,
+                u * cloud_scale,
+                v * cloud_scale,
                 octaves=4,
                 persistence=0.5,
                 lacunarity=2.0,
@@ -456,16 +454,16 @@ def render_planet_image(size=512):
                     width=10
                 )
         
-        # Mask the back rings to only show TOP half (behind planet)
+        # Mask the back rings to only show BOTTOM half (behind planet - far side)
         back_ring_array = np.array(back_ring_layer)
-        for y in range(int(center_y), size):
-            back_ring_array[y, :, 3] = 0  # Make bottom half transparent
+        for y in range(int(center_y)):
+            back_ring_array[y, :, 3] = 0  # Make top half transparent
         back_ring_layer = Image.fromarray(back_ring_array, 'RGBA')
         
-        # Mask the front rings to only show BOTTOM half (in front of planet)
+        # Mask the front rings to only show TOP half (in front of planet - near side)
         front_ring_array = np.array(front_ring_layer)
-        for y in range(int(center_y)):
-            front_ring_array[y, :, 3] = 0  # Make top half transparent
+        for y in range(int(center_y), size):
+            front_ring_array[y, :, 3] = 0  # Make bottom half transparent
         front_ring_layer = Image.fromarray(front_ring_array, 'RGBA')
         
         # Composite: back rings, then planet, then front rings
