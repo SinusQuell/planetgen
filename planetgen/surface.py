@@ -6,7 +6,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from .noise import _build_perm_table, fbm_noise_3d, ridged_noise_3d
-from .types import COLOR_RAMPS, GAS_GIANT_PALETTES, PLANET_TYPES
+from .types import BAND_PALETTES, COLOR_RAMPS, PLANET_TYPES
 from .util import color_ramp_lookup, shift_hue, smoothstep
 
 
@@ -27,12 +27,12 @@ def generate_surface(geo, planet_type, seed, temperature=None, hue=0.0):
     hue rotates the ground colors by that many degrees.
     """
     px, py, pz = geo["px"], geo["py"], geo["pz"]
-    perm = _build_perm_table(seed)
     traits = PLANET_TYPES[planet_type]
     land_specular = traits.get("land_specular", 0.04)
 
-    if planet_type == "gas_giant":
-        color = np.stack(_generate_gas_giant_surface(geo, seed, perm), axis=-1)
+    if traits.get("banded"):
+        palettes = BAND_PALETTES[traits["banded"]]
+        color = np.stack(_generate_gas_giant_surface(geo, seed, palettes), axis=-1)
         color = shift_hue(color, hue)
         n = len(color)
         return Surface(color, np.zeros(n), np.full(n, land_specular), np.zeros(n, dtype=bool))
@@ -73,8 +73,8 @@ def generate_surface(geo, planet_type, seed, temperature=None, hue=0.0):
         height = np.maximum(height, sea_level)
     specular = np.where(liquid, 0.8, land_specular)
 
-    if traits.get("ice_caps") and temperature is not None:
-        ice = polar_ice(px, py, pz, seed, offset, temperature, height)
+    if traits.get("ice_caps") is not None and temperature is not None:
+        ice = polar_ice(px, py, pz, seed, offset, temperature - traits["ice_caps"], height)
         color = color * (1.0 - ice[:, None]) + np.array([236.0, 242.0, 250.0]) * ice[:, None]
         frozen = ice > 0.5
         liquid = liquid & ~frozen
@@ -131,8 +131,9 @@ def crater_field(px, py, pz, seed, count):
 
 
 def polar_ice(px, py, pz, seed, offset, temperature, height):
-    """Ice cover 0..1 around the poles. At 0 °C the caps reach down to about
-    45° latitude, by 50 °C they are gone. High ground freezes a little
+    """Ice cover 0..1 around the poles. temperature is relative to the
+    type's reference: at 0 the caps reach down to about 45° latitude, 50
+    degrees warmer they are gone. High ground freezes a little
     further from the pole."""
     edge = np.clip(0.72 + temperature * 0.006, 0.55, 1.1)
     ragged = _noise("fbm", px, py, pz, 4.0, offset + 300, seed + 400, octaves=5) * 0.12
@@ -225,12 +226,12 @@ def _gas_giant_band_table(rng, palette, samples=2048):
     return lat, table, shear
 
 
-def _generate_gas_giant_surface(geo, seed, perm):
+def _generate_gas_giant_surface(geo, seed, palettes):
     """Gas giant: latitude bands sheared by turbulence, with oval storms."""
     px, py, pz = geo["px"], geo["py"], geo["pz"]
 
     rng = np.random.RandomState((seed + 5555) & 0x7FFFFFFF)
-    palette = GAS_GIANT_PALETTES[rng.randint(0, len(GAS_GIANT_PALETTES))]
+    palette = palettes[rng.randint(0, len(palettes))]
     offset = rng.uniform(-1000, 1000, 3)
     table_lat, table, shear_table = _gas_giant_band_table(rng, palette)
 

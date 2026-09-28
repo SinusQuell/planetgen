@@ -4,15 +4,16 @@
 #   sea_level      height below which the surface is liquid (flat and glossy)
 #   land_specular  how glossy the solid surface is, 0..1 (default 0.04)
 #   glow           color the liquid gives off, visible on the night side
-#   ice_caps       polar ice that grows as the planet gets colder
+#   ice_caps       polar ice that grows as the planet gets colder; the value
+#                  is the temperature (°C) at which it reaches about 45°
 #   craters        how many impact craters to scatter over the surface
-#   banded         a gas giant: bands and storms instead of terrain
+#   banded         a giant planet: bands and storms instead of terrain, using
+#                  the named set in BAND_PALETTES
 #   clouds         range the cloud coverage (0..1) is rolled from
 #   cloud_color    color of the cloud tops
 #   terrain        height field style, see surface.terrain_height (default rolling)
 PLANET_TYPES = {
     "lava": {
-        "base_color": (255, 80, 0),
         "temperature": (1000, 2000),
         "atmosphere": "thin",
         "atmo_color": (255, 100, 20),
@@ -24,7 +25,6 @@ PLANET_TYPES = {
         "clouds": (0.0, 0.15), "cloud_color": (84, 74, 68),
     },
     "barren": {
-        "base_color": (180, 140, 100),
         "temperature": (100, 400),
         "atmosphere": "none",
         "atmo_color": (0, 0, 0),
@@ -32,7 +32,6 @@ PLANET_TYPES = {
         "craters": 140,
     },
     "ice": {
-        "base_color": (200, 240, 255),
         "temperature": (-200, 0),
         "atmosphere": "thin",
         "atmo_color": (180, 210, 255),
@@ -42,48 +41,43 @@ PLANET_TYPES = {
         "clouds": (0.1, 0.35), "cloud_color": (235, 242, 255),
     },
     "ocean": {
-        "base_color": (0, 80, 200),
         "temperature": (0, 100),
         "atmosphere": "thick",
         "atmo_color": (100, 150, 255),
         "atmo_strength": 0.5,
         "sea_level": -0.01,
         "terrain": "continents",
-        "ice_caps": True,
+        "ice_caps": 0,
         "clouds": (0.35, 0.65), "cloud_color": (250, 250, 252),
     },
     "forest": {
-        "base_color": (50, 150, 60),
         "temperature": (0, 30),
         "atmosphere": "oxygen-rich",
         "atmo_color": (100, 160, 255),
         "atmo_strength": 0.45,
         "sea_level": -0.05,
         "terrain": "continents",
-        "ice_caps": True,
+        "ice_caps": 0,
         "clouds": (0.3, 0.6), "cloud_color": (250, 250, 250),
     },
     "desert": {
-        "base_color": (230, 200, 100),
         "temperature": (40, 60),
         "atmosphere": "thin",
         "atmo_color": (220, 180, 120),
         "atmo_strength": 0.25,
-        "ice_caps": True,
+        "ice_caps": 0,
         "craters": 12,
         "clouds": (0.0, 0.2), "cloud_color": (232, 214, 178),
     },
     "gas_giant": {
-        "base_color": (255, 180, 100),
         "temperature": (-100, 400),
         "atmosphere": "dense",
         "atmo_color": (200, 160, 100),
         "atmo_strength": 0.5,
         "land_specular": 0.06,
-        "banded": True,
+        "banded": "gas",
     },
     "toxic": {
-        "base_color": (100, 255, 100),
         "temperature": (100, 600),
         "atmosphere": "poisonous",
         "atmo_color": (120, 220, 80),
@@ -94,7 +88,6 @@ PLANET_TYPES = {
         "clouds": (0.2, 0.5), "cloud_color": (196, 214, 120),
     },
     "crystal": {
-        "base_color": (180, 255, 255),
         "temperature": (-50, 100),
         "atmosphere": "thin",
         "atmo_color": (160, 230, 255),
@@ -103,7 +96,6 @@ PLANET_TYPES = {
         "craters": 20,
     },
     "volcanic": {
-        "base_color": (255, 50, 50),
         "temperature": (800, 1500),
         "atmosphere": "sulfurous",
         "atmo_color": (200, 80, 20),
@@ -114,10 +106,40 @@ PLANET_TYPES = {
         "glow": (255, 90, 20),
         "clouds": (0.15, 0.4), "cloud_color": (96, 86, 80),
     },
+    "ice_giant": {
+        "temperature": (-220, -150),
+        "atmosphere": "hydrogen, helium and methane",
+        "atmo_color": (150, 210, 240),
+        "atmo_strength": 0.55,
+        "land_specular": 0.05,
+        "banded": "ice",
+    },
+    "tundra": {
+        "temperature": (-60, -5),
+        "atmosphere": "thin",
+        "atmo_color": (170, 200, 240),
+        "atmo_strength": 0.3,
+        "sea_level": -0.12,
+        "ice_caps": -45,
+        "craters": 8,
+        "clouds": (0.1, 0.35),
+        "cloud_color": (238, 242, 248),
+    },
 }
 
 # Color ramps: list of (height_threshold, (r, g, b)) for smooth interpolation
 COLOR_RAMPS = {
+    "tundra": [
+        (-1.0, (18, 38, 70)),
+        (-0.14, (40, 72, 104)),
+        (-0.12, (160, 176, 186)),
+        (-0.05, (112, 116, 96)),
+        (0.08, (128, 124, 98)),
+        (0.2, (104, 100, 86)),
+        (0.35, (150, 146, 138)),
+        (0.5, (226, 230, 236)),
+        (1.0, (248, 250, 255)),
+    ],
     "ocean": [
         (-1.0, (6, 22, 64)),
         (-0.3, (12, 46, 112)),
@@ -242,3 +264,23 @@ GAS_GIANT_PALETTES = [
         "storm": (250, 232, 200),
     },
 ]
+
+ICE_GIANT_PALETTES = [
+    {   # Uranus-like pale cyan, bands barely there
+        "zones": [(176, 226, 232), (186, 234, 238), (168, 218, 228)],
+        "belts": [(150, 206, 220), (158, 212, 224), (142, 198, 214)],
+        "storm": (224, 246, 250),
+    },
+    {   # Deep blue with dark spots
+        "zones": [(80, 128, 214), (92, 142, 224), (72, 118, 204)],
+        "belts": [(58, 100, 190), (66, 110, 198), (50, 90, 176)],
+        "storm": (26, 44, 120),
+    },
+    {   # Teal
+        "zones": [(110, 196, 196), (124, 206, 204), (100, 186, 188)],
+        "belts": [(80, 164, 176), (88, 172, 182), (72, 152, 166)],
+        "storm": (210, 240, 238),
+    },
+]
+
+BAND_PALETTES = {"gas": GAS_GIANT_PALETTES, "ice": ICE_GIANT_PALETTES}
