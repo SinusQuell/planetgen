@@ -16,12 +16,14 @@ def light_direction(azimuth, elevation):
     return (math.cos(el) * math.cos(az), -math.cos(el) * math.sin(az), math.sin(el))
 
 
-def apply_lighting(r, g, b, geo, planet_type, light, shadow=None):
-    """Apply Lambertian diffuse + Blinn-Phong specular + limb darkening.
+def apply_lighting(surface, geo, light, shadow=None):
+    """Light the surface: soft Lambert diffuse, limb darkening and two
+    Blinn-Phong highlights, a tight glint for liquids and a broad sheen for
+    everything glossy.
 
     shadow, if given, scales the sunlight per pixel (1 = fully lit).
-
-    Returns (r, g, b, diffuse) where diffuse is the raw diffuse factor for cloud lighting.
+    Returns (rgb, diffuse); rgb is (N, 3) in 0..255 and diffuse is the
+    sunlight factor, reused to light the clouds.
     """
     nx, ny, nz = geo["nx"], geo["ny"], geo["nz"]
     lx, ly, lz = light
@@ -36,38 +38,28 @@ def apply_lighting(r, g, b, geo, planet_type, light, shadow=None):
 
     # Limb darkening, kept mild so the lit edge still reads as bright
     limb = 0.35 + 0.65 * np.sqrt(nz)
-
-    # Ambient
     ambient = 0.03
 
-    # Specular (Blinn-Phong)
-    vx, vy, vz = 0.0, 0.0, 1.0
-    hx, hy, hz = lx + vx, ly + vy, lz + vz
+    # Half vector between the sun and the viewer (who looks down -z)
+    hx, hy, hz = lx, ly, lz + 1.0
     h_len = math.sqrt(hx * hx + hy * hy + hz * hz)
-    hx /= h_len
-    hy /= h_len
-    hz /= h_len
-
-    n_dot_h = np.clip(nx * hx + ny * hy + nz * hz, 0.0, 1.0)
-    shininess = 10.0 if planet_type == "gas_giant" else 30.0
-    specular = np.power(n_dot_h, shininess) * 0.25 * (n_dot_l > 0)
+    n_dot_h = np.clip((nx * hx + ny * hy + nz * hz) / h_len, 0.0, 1.0)
+    glint = np.where(surface.liquid, np.power(n_dot_h, 90.0) * 0.9, 0.0)
+    sheen = np.power(n_dot_h, 14.0) * 0.35
+    specular = surface.specular * (glint + sheen) * (n_dot_l > 0)
     if shadow is not None:
         specular = specular * shadow
 
-    # Combine
     light_factor = ambient + diffuse * limb
-    r_out = r * light_factor + specular * 255.0
-    g_out = g * light_factor + specular * 255.0
-    b_out = b * light_factor + specular * 255.0
-
-    return np.clip(r_out, 0, 255), np.clip(g_out, 0, 255), np.clip(b_out, 0, 255), diffuse
+    rgb = surface.color * light_factor[:, None] + (specular * 255.0)[:, None]
+    return np.clip(rgb, 0, 255), diffuse
 
 
-def apply_atmosphere(r, g, b, geo, traits):
-    """Apply Fresnel-based atmospheric rim glow."""
+def apply_atmosphere(rgb, geo, traits):
+    """Apply Fresnel-based atmospheric rim glow to (N, 3) colors."""
     strength = traits["atmo_strength"]
     if strength <= 0:
-        return r, g, b
+        return rgb
 
     nz = geo["nz"]
     atmo_color = traits["atmo_color"]
@@ -75,13 +67,8 @@ def apply_atmosphere(r, g, b, geo, traits):
     # Fresnel: bright at the limb, transparent at center
     fresnel = np.power(np.clip(1.0 - nz, 0, 1), 3.0) * strength
 
-    ar, ag, ab = float(atmo_color[0]), float(atmo_color[1]), float(atmo_color[2])
-
-    r_out = r * (1.0 - fresnel) + ar * fresnel
-    g_out = g * (1.0 - fresnel) + ag * fresnel
-    b_out = b * (1.0 - fresnel) + ab * fresnel
-
-    return np.clip(r_out, 0, 255), np.clip(g_out, 0, 255), np.clip(b_out, 0, 255)
+    fresnel = fresnel[:, None]
+    return np.clip(rgb * (1.0 - fresnel) + np.array(atmo_color) * fresnel, 0, 255)
 
 
 def render_outer_glow(size, radius, traits):

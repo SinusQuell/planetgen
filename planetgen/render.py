@@ -23,32 +23,27 @@ def render_planet(spec, size=512):
     orientation = orientation_matrix(spec.tilt, spec.inclination, spec.rotation)
     geo = build_sphere_geometry(size, radius, orientation)
 
-    # 2. Generate surface colors
-    r, g, b = generate_surface(geo, planet_type, seed)
+    # 2. Generate the surface material
+    surface = generate_surface(geo, planet_type, seed)
 
     # 3. Apply lighting
     light = light_direction(spec.light_azimuth, spec.light_elevation)
     ring_system = RingSystem(seed, spec.ring_inner, spec.ring_outer) if has_rings else None
     shadow = ring_system.shadow_on_planet(geo, geo["pole"], light) if ring_system else None
-    r, g, b, diffuse = apply_lighting(r, g, b, geo, planet_type, light, shadow)
+    rgb, diffuse = apply_lighting(surface, geo, light, shadow)
 
     # 4. Add clouds (before atmosphere, after lighting)
     if planet_type in ("ocean", "forest", "ice", "desert"):
-        cloud_alpha = generate_clouds(geo, seed, diffuse)
-        # Blend white clouds over surface
-        r = r * (1.0 - cloud_alpha) + 255.0 * cloud_alpha
-        g = g * (1.0 - cloud_alpha) + 255.0 * cloud_alpha
-        b = b * (1.0 - cloud_alpha) + 255.0 * cloud_alpha
+        cloud_alpha = generate_clouds(geo, seed, diffuse)[:, None]
+        rgb = rgb * (1.0 - cloud_alpha) + 255.0 * cloud_alpha
 
     # 5. Apply atmosphere
-    r, g, b = apply_atmosphere(r, g, b, geo, traits)
+    rgb = apply_atmosphere(rgb, geo, traits)
 
     # 6. Assemble planet RGBA
     planet_rgba = np.zeros((size, size, 4), dtype=np.uint8)
     mask = geo["mask"]
-    planet_rgba[mask, 0] = np.clip(r, 0, 255).astype(np.uint8)
-    planet_rgba[mask, 1] = np.clip(g, 0, 255).astype(np.uint8)
-    planet_rgba[mask, 2] = np.clip(b, 0, 255).astype(np.uint8)
+    planet_rgba[mask, :3] = np.clip(rgb, 0, 255).astype(np.uint8)
     planet_rgba[mask, 3] = np.round(geo["coverage"] * 255).astype(np.uint8)
 
     # 7. Rings

@@ -1,5 +1,8 @@
 """Planet type definitions, color ramps and palettes."""
 
+# Optional material keys per type:
+#   sea_level      height below which the surface is liquid (flat and glossy)
+#   land_specular  how glossy the solid surface is, 0..1 (default 0.04)
 PLANET_TYPES = {
     "lava": {
         "base_color": (255, 80, 0),
@@ -7,6 +10,8 @@ PLANET_TYPES = {
         "atmosphere": "thin",
         "atmo_color": (255, 100, 20),
         "atmo_strength": 0.3,
+        "sea_level": -0.05,
+        "land_specular": 0.03,
     },
     "barren": {
         "base_color": (180, 140, 100),
@@ -21,6 +26,7 @@ PLANET_TYPES = {
         "atmosphere": "thin",
         "atmo_color": (180, 210, 255),
         "atmo_strength": 0.3,
+        "land_specular": 0.25,
     },
     "ocean": {
         "base_color": (0, 80, 200),
@@ -28,6 +34,7 @@ PLANET_TYPES = {
         "atmosphere": "thick",
         "atmo_color": (100, 150, 255),
         "atmo_strength": 0.5,
+        "sea_level": -0.01,
     },
     "forest": {
         "base_color": (50, 150, 60),
@@ -35,6 +42,7 @@ PLANET_TYPES = {
         "atmosphere": "oxygen-rich",
         "atmo_color": (100, 160, 255),
         "atmo_strength": 0.45,
+        "sea_level": -0.05,
     },
     "desert": {
         "base_color": (230, 200, 100),
@@ -49,6 +57,7 @@ PLANET_TYPES = {
         "atmosphere": "dense",
         "atmo_color": (200, 160, 100),
         "atmo_strength": 0.5,
+        "land_specular": 0.06,
     },
     "toxic": {
         "base_color": (100, 255, 100),
@@ -56,6 +65,7 @@ PLANET_TYPES = {
         "atmosphere": "poisonous",
         "atmo_color": (120, 220, 80),
         "atmo_strength": 0.4,
+        "sea_level": -0.05,
     },
     "crystal": {
         "base_color": (180, 255, 255),
@@ -63,6 +73,7 @@ PLANET_TYPES = {
         "atmosphere": "thin",
         "atmo_color": (160, 230, 255),
         "atmo_strength": 0.3,
+        "land_specular": 0.45,
     },
     "volcanic": {
         "base_color": (255, 50, 50),
@@ -70,6 +81,8 @@ PLANET_TYPES = {
         "atmosphere": "sulfurous",
         "atmo_color": (200, 80, 20),
         "atmo_strength": 0.35,
+        "sea_level": -0.05,
+        "land_specular": 0.03,
     },
 }
 

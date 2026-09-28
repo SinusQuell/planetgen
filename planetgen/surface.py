@@ -1,24 +1,35 @@
 """Surface and cloud color generation."""
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 
 from .noise import _build_perm_table, fbm_noise_3d
-from .types import COLOR_RAMPS, GAS_GIANT_PALETTES
+from .types import COLOR_RAMPS, GAS_GIANT_PALETTES, PLANET_TYPES
 from .util import color_ramp_lookup, smoothstep
 
 
-def generate_surface(geo, planet_type, seed):
-    """Generate the surface color array for all masked pixels.
+@dataclass
+class Surface:
+    """Material of every visible planet pixel (1D arrays over the mask)."""
+    color: np.ndarray     # (N, 3) albedo, 0..255
+    height: np.ndarray    # (N,) terrain height, liquids flattened to sea level
+    specular: np.ndarray  # (N,) glossiness, 0..1
+    liquid: np.ndarray    # (N,) bool, True for seas (water, lava, acid)
 
-    Returns (r, g, b) as 1D float64 arrays in [0, 255].
-    """
+
+def generate_surface(geo, planet_type, seed):
+    """Generate the surface material for all masked pixels."""
     px, py, pz = geo["px"], geo["py"], geo["pz"]
     perm = _build_perm_table(seed)
+    traits = PLANET_TYPES[planet_type]
+    land_specular = traits.get("land_specular", 0.04)
 
     if planet_type == "gas_giant":
-        return _generate_gas_giant_surface(geo, seed, perm)
+        color = np.stack(_generate_gas_giant_surface(geo, seed, perm), axis=-1)
+        n = len(color)
+        return Surface(color, np.zeros(n), np.full(n, land_specular), np.zeros(n, dtype=bool))
 
     # ── Domain warping ───────────────────────────────────────────────────
     rng = np.random.RandomState((seed + 7777) & 0x7FFFFFFF)
@@ -70,8 +81,17 @@ def generate_surface(geo, planet_type, seed):
     r = np.clip(r + variation, 0, 255)
     g = np.clip(g + variation * 0.8, 0, 255)
     b = np.clip(b + variation * 0.6, 0, 255)
+    color = np.stack([r, g, b], axis=-1)
 
-    return r, g, b
+    sea_level = traits.get("sea_level")
+    if sea_level is None:
+        liquid = np.zeros(len(height), dtype=bool)
+    else:
+        liquid = height < sea_level
+        height = np.maximum(height, sea_level)
+    specular = np.where(liquid, 0.8, land_specular)
+
+    return Surface(color, height, specular, liquid)
 
 
 def _generate_gas_giant_surface(geo, seed, perm):
