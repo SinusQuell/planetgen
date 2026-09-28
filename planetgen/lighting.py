@@ -16,8 +16,10 @@ def light_direction(azimuth, elevation):
     return (math.cos(el) * math.cos(az), -math.cos(el) * math.sin(az), math.sin(el))
 
 
-def apply_lighting(r, g, b, geo, planet_type, light):
+def apply_lighting(r, g, b, geo, planet_type, light, shadow=None):
     """Apply Lambertian diffuse + Blinn-Phong specular + limb darkening.
+
+    shadow, if given, scales the sunlight per pixel (1 = fully lit).
 
     Returns (r, g, b, diffuse) where diffuse is the raw diffuse factor for cloud lighting.
     """
@@ -29,6 +31,8 @@ def apply_lighting(r, g, b, geo, planet_type, light):
     wrap = 0.08
     n_dot_l = nx * lx + ny * ly + nz * lz
     diffuse = np.clip((n_dot_l + wrap) / (1.0 + wrap), 0.0, 1.0)
+    if shadow is not None:
+        diffuse = diffuse * shadow
 
     # Limb darkening, kept mild so the lit edge still reads as bright
     limb = 0.35 + 0.65 * np.sqrt(nz)
@@ -47,6 +51,8 @@ def apply_lighting(r, g, b, geo, planet_type, light):
     n_dot_h = np.clip(nx * hx + ny * hy + nz * hz, 0.0, 1.0)
     shininess = 10.0 if planet_type == "gas_giant" else 30.0
     specular = np.power(n_dot_h, shininess) * 0.25 * (n_dot_l > 0)
+    if shadow is not None:
+        specular = specular * shadow
 
     # Combine
     light_factor = ambient + diffuse * limb

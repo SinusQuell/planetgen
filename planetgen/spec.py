@@ -61,7 +61,9 @@ class PlanetSpec:
         values["light_azimuth"] = round(rng.uniform(15, 165), 1)
         values["light_elevation"] = round(rng.uniform(15, 60), 1)
         values["tilt"] = round(rng.uniform(-25, 25), 1)
-        values["inclination"] = round(rng.choice([-1, 1]) * rng.uniform(8, 30), 1)
+        # Positive, so with the sun above the planet we see the lit face of
+        # the rings.
+        values["inclination"] = round(rng.uniform(8, 30), 1)
         values["rotation"] = round(rng.uniform(0, 360), 1)
         values["ring_inner"] = round(rng.uniform(1.3, 1.5), 2)
         values["ring_outer"] = round(rng.uniform(1.9, 2.4), 2)

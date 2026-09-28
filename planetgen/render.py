@@ -5,7 +5,7 @@ from PIL import Image
 
 from .geometry import build_sphere_geometry, orientation_matrix
 from .lighting import apply_atmosphere, apply_lighting, light_direction, render_outer_glow
-from .rings import render_rings
+from .rings import RingSystem
 from .spec import PlanetSpec
 from .surface import generate_clouds, generate_surface
 from .types import PLANET_TYPES
@@ -28,7 +28,9 @@ def render_planet(spec, size=512):
 
     # 3. Apply lighting
     light = light_direction(spec.light_azimuth, spec.light_elevation)
-    r, g, b, diffuse = apply_lighting(r, g, b, geo, planet_type, light)
+    ring_system = RingSystem(seed, spec.ring_inner, spec.ring_outer) if has_rings else None
+    shadow = ring_system.shadow_on_planet(geo, geo["pole"], light) if ring_system else None
+    r, g, b, diffuse = apply_lighting(r, g, b, geo, planet_type, light, shadow)
 
     # 4. Add clouds (before atmosphere, after lighting)
     if planet_type in ("ocean", "forest", "ice", "desert"):
@@ -51,14 +53,13 @@ def render_planet(spec, size=512):
 
     # 7. Rings
     if has_rings:
-        back_rings, front_rings = render_rings(
-            size, radius, seed, geo["pole"], spec.ring_inner, spec.ring_outer)
+        back_rings, front_rings = ring_system.render(size, radius, geo["pole"], light)
         final = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         if back_rings is not None:
-            final = Image.alpha_composite(final, Image.fromarray(back_rings, "RGBA"))
+            final = Image.alpha_composite(final, _to_image(back_rings))
         final = Image.alpha_composite(final, Image.fromarray(planet_rgba, "RGBA"))
         if front_rings is not None:
-            final = Image.alpha_composite(final, Image.fromarray(front_rings, "RGBA"))
+            final = Image.alpha_composite(final, _to_image(front_rings))
     else:
         final = Image.fromarray(planet_rgba, "RGBA")
 
@@ -72,6 +73,11 @@ def render_planet(spec, size=512):
         final = canvas
 
     return final
+
+
+def _to_image(rgba):
+    """Float RGBA in 0..1 to a PIL image."""
+    return Image.fromarray(np.round(np.clip(rgba, 0, 1) * 255).astype(np.uint8), "RGBA")
 
 
 def render_planet_image(size=512, seed=None, planet_type=None, rings=None, **options):
