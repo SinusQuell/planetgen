@@ -111,7 +111,7 @@ PLANET_TYPES = {
     },
     "ice_giant": {
         "temperature": (-220, -150),
-        "atmosphere": "hydrogen, helium and methane",
+        "atmosphere": "hydrogen-methane",
         "atmo_color": (150, 210, 240),
         "atmo_strength": 0.55,
         "land_specular": 0.05,

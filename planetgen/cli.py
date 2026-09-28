@@ -141,6 +141,7 @@ def main(argv=None):
             print(image_path)
         else:
             print(f"{metadata['name']}  ({metadata['type']}, seed {metadata['seed']})")
+            print(f"  {metadata['description']}")
             print(f"  image:    {image_path}")
             print(f"  metadata: {json_path}")
             if spin_path:

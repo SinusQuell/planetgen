@@ -1,5 +1,6 @@
 """Everything that describes one planet, drawn from a single seed."""
 
+import math
 import random
 from dataclasses import asdict, dataclass, fields
 
@@ -36,6 +37,10 @@ class PlanetSpec:
     hue: float
     # Inhabited: city lights on the night side.
     cities: bool
+    # Physical stats for the metadata; they do not change the picture.
+    radius_km: int
+    density: float          # g/cm³
+    day_length_hours: float
     # How strongly terrain height shades the surface; 0 renders it flat.
     relief: float = 1.0
     # Draw the moons into the picture (they are always counted).
@@ -83,6 +88,16 @@ class PlanetSpec:
         values["clouds"] = round(rng.uniform(*traits.get("clouds", (0.0, 0.0))), 2)
         values["hue"] = round(rng.uniform(-12, 12), 1)
         values["cities"] = rng.random() < traits.get("cities", 0.0)
+        giant = traits.get("banded")
+        if giant == "gas":
+            radius, density, day = (40_000, 90_000), (0.6, 1.6), (9, 18)
+        elif giant == "ice":
+            radius, density, day = (18_000, 30_000), (1.1, 1.8), (13, 20)
+        else:
+            radius, density, day = (1_500, 9_000), (2.8, 6.0), (8, 60)
+        values["radius_km"] = int(round(rng.uniform(*radius), -1))
+        values["density"] = round(rng.uniform(*density), 2)
+        values["day_length_hours"] = round(rng.uniform(*day), 1)
 
         unknown = set(overrides) - {f.name for f in fields(cls)}
         if unknown:
@@ -94,7 +109,41 @@ class PlanetSpec:
         values["scale"] = round(values["scale"], 3)
         return cls(**values)
 
+    @property
+    def mass_earths(self):
+        earth_mass_kg = 5.972e24
+        volume_m3 = 4.0 / 3.0 * math.pi * (self.radius_km * 1000.0) ** 3
+        return volume_m3 * self.density * 1000.0 / earth_mass_kg
+
+    @property
+    def gravity_g(self):
+        """Surface gravity in multiples of Earth's."""
+        big_g = 6.674e-11
+        mass_kg = self.mass_earths * 5.972e24
+        return big_g * mass_kg / (self.radius_km * 1000.0) ** 2 / 9.81
+
+    @property
+    def description(self):
+        """One sentence summing the planet up."""
+        kind = self.type.replace("_", " ")
+        article = "An" if kind[0] in "aeiou" else "A"
+        air = self.atmosphere
+        features = ["no atmosphere" if air == "none" else f"a {air} atmosphere"]
+        if self.moons:
+            features.append(f"{self.moons} moon{'s' if self.moons != 1 else ''}")
+        if self.rings:
+            features.append("a ring system")
+        if self.cities:
+            features.append("lit cities on its night side")
+        listed = features[0] if len(features) == 1 else (
+            ", ".join(features[:-1]) + " and " + features[-1])
+        sentence = f"{article} {kind} world {self.radius_km * 2:,} km across with {listed}"
+        return sentence + "."
+
     def to_dict(self):
         data = asdict(self)
         data["atmosphere"] = self.atmosphere
+        data["mass_earths"] = round(self.mass_earths, 3)
+        data["gravity_g"] = round(self.gravity_g, 2)
+        data["description"] = self.description
         return data
