@@ -16,16 +16,59 @@ def light_direction(azimuth, elevation):
     return (math.cos(el) * math.cos(az), -math.cos(el) * math.sin(az), math.sin(el))
 
 
-def apply_lighting(surface, geo, light, shadow=None):
+# Height field units to slope. Terrain heights span about -1..1, which taken
+# literally would be mountains as tall as the planet.
+RELIEF_SCALE = 0.05
+
+
+def bumped_normals(geo, height, relief):
+    """Tilt the sphere normals by the slope of the height field.
+
+    The slope is taken in screen space, which is cheap and good enough away
+    from the very edge; pixels next to the rim keep their plain normals.
+    """
+    nx, ny, nz = geo["nx"], geo["ny"], geo["nz"]
+    if relief <= 0:
+        return nx, ny, nz
+
+    mask = geo["mask"]
+    field = np.zeros(mask.shape)
+    field[mask] = height
+    grad_y, grad_x = np.gradient(field)
+
+    interior = mask.copy()
+    interior[1:, :] &= mask[:-1, :]
+    interior[:-1, :] &= mask[1:, :]
+    interior[:, 1:] &= mask[:, :-1]
+    interior[:, :-1] &= mask[:, 1:]
+    keep = interior[mask]
+
+    # Per pixel slope to per planet radius slope, then undo the
+    # foreshortening toward the limb (which is what the nz factor does).
+    scale = geo["radius"] * relief * RELIEF_SCALE * nz * keep
+    gx = grad_x[mask] * scale
+    gy = grad_y[mask] * scale
+
+    # Remove the part of the slope along the normal, then tilt away from it.
+    along = gx * nx + gy * ny
+    bx = nx - (gx - along * nx)
+    by = ny - (gy - along * ny)
+    bz = nz + along * nz
+    length = np.sqrt(bx * bx + by * by + bz * bz)
+    return bx / length, by / length, bz / length
+
+
+def apply_lighting(surface, geo, light, shadow=None, relief=1.0):
     """Light the surface: soft Lambert diffuse, limb darkening and two
     Blinn-Phong highlights, a tight glint for liquids and a broad sheen for
     everything glossy.
 
     shadow, if given, scales the sunlight per pixel (1 = fully lit).
+    relief scales how strongly terrain height shades the surface.
     Returns (rgb, diffuse); rgb is (N, 3) in 0..255 and diffuse is the
     sunlight factor, reused to light the clouds.
     """
-    nx, ny, nz = geo["nx"], geo["ny"], geo["nz"]
+    nx, ny, nz = bumped_normals(geo, surface.height, relief)
     lx, ly, lz = light
 
     # Wrap the diffuse term slightly so the day/night line is soft rather
@@ -36,8 +79,9 @@ def apply_lighting(surface, geo, light, shadow=None):
     if shadow is not None:
         diffuse = diffuse * shadow
 
-    # Limb darkening, kept mild so the lit edge still reads as bright
-    limb = 0.35 + 0.65 * np.sqrt(nz)
+    # Limb darkening follows the smooth sphere, not the bumps. Kept mild so
+    # the lit edge still reads as bright.
+    limb = 0.35 + 0.65 * np.sqrt(geo["nz"])
     ambient = 0.03
 
     # Half vector between the sun and the viewer (who looks down -z)

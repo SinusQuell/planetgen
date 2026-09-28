@@ -29,6 +29,8 @@ class PlanetSpec:
     # Ring edges in planet radii.
     ring_inner: float
     ring_outer: float
+    # How strongly terrain height shades the surface; 0 renders it flat.
+    relief: float = 1.0
 
     @property
     def atmosphere(self):

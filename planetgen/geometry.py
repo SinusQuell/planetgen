@@ -67,6 +67,7 @@ def build_sphere_geometry(size, radius, orientation=None):
     pole = (orientation[0, 1], -orientation[1, 1], orientation[2, 1])
 
     return {
+        "radius": radius,
         "mask": mask,
         "coverage": coverage,
         "nx": nx,

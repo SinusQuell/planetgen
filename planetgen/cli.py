@@ -37,6 +37,8 @@ def build_parser():
                         help="degrees the north pole leans toward you (0 = rings edge-on)")
     parser.add_argument("--rotation", type=float,
                         help="spin around the axis in degrees, shows a different side")
+    parser.add_argument("--relief", type=float,
+                        help="terrain shading strength (default 1, 0 = flat)")
     parser.add_argument("-o", "--out", default="export",
                         help="output folder (default: export)")
     parser.add_argument("--open", action="store_true",
@@ -56,7 +58,8 @@ def list_types():
 
 def spec_options(args):
     """PlanetSpec overrides from the command line."""
-    options = {"tilt": args.tilt, "inclination": args.inclination, "rotation": args.rotation}
+    options = {"tilt": args.tilt, "inclination": args.inclination, "rotation": args.rotation,
+               "relief": args.relief}
     if args.light is not None:
         options["light_azimuth"], options["light_elevation"] = args.light
     return options

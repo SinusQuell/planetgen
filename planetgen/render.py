@@ -30,7 +30,7 @@ def render_planet(spec, size=512):
     light = light_direction(spec.light_azimuth, spec.light_elevation)
     ring_system = RingSystem(seed, spec.ring_inner, spec.ring_outer) if has_rings else None
     shadow = ring_system.shadow_on_planet(geo, geo["pole"], light) if ring_system else None
-    rgb, diffuse = apply_lighting(surface, geo, light, shadow)
+    rgb, diffuse = apply_lighting(surface, geo, light, shadow, spec.relief)
 
     # 4. Add clouds (before atmosphere, after lighting)
     if planet_type in ("ocean", "forest", "ice", "desert"):
