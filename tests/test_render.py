@@ -18,6 +18,17 @@ def test_same_seed_gives_same_planet():
     assert np.array_equal(pixels(a), pixels(b))
 
 
+def test_image_size_does_not_change_the_planet():
+    _, small = render_planet_image(size=64, seed=55)
+    _, large = render_planet_image(size=256, seed=55)
+    assert small == large
+
+
+def test_unknown_option_is_rejected():
+    with pytest.raises(TypeError):
+        render_planet_image(size=64, seed=1, colour="red")
+
+
 def test_different_seeds_differ():
     a, _ = render_planet_image(size=96, seed=1, planet_type="ocean")
     b, _ = render_planet_image(size=96, seed=2, planet_type="ocean")

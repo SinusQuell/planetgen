@@ -1,43 +1,23 @@
 """Main rendering pipeline."""
 
-import random
-
 import numpy as np
 from PIL import Image
 
 from .geometry import build_sphere_geometry
 from .lighting import apply_atmosphere, apply_lighting, render_outer_glow
-from .names import generate_name
 from .rings import render_rings
+from .spec import PlanetSpec
 from .surface import generate_clouds, generate_surface
 from .types import PLANET_TYPES
 
 
-def render_planet_image(size=512, seed=None, planet_type=None, rings=None):
-    """Render a complete planet image with metadata.
-
-    The same seed (and type, if given) always produces the same planet.
-    planet_type and rings override the random choice when not None.
-    """
-    if seed is None:
-        seed = random.randint(0, 999_999)
-    rng = random.Random(seed)
-
-    type_pick = rng.choice(list(PLANET_TYPES.keys()))
-    planet_type = planet_type or type_pick
+def render_planet(spec, size=512):
+    """Render a PlanetSpec to a square RGBA image."""
+    planet_type = spec.type
     traits = PLANET_TYPES[planet_type]
-
-    name = generate_name(rng)
-    temp_range = traits["temperature"]
-    temperature = rng.randint(temp_range[0], temp_range[1])
-    ring_roll = rng.random() < 0.2
-    has_rings = ring_roll if rings is None else rings
-    has_moons = rng.randint(0, 5)
-
-    if has_rings:
-        radius = rng.randint(int(size * 0.22), int(size * 0.30))
-    else:
-        radius = rng.randint(int(size * 0.30), int(size * 0.45))
+    seed = spec.seed
+    has_rings = spec.rings
+    radius = max(4, int(round(spec.scale * size)))
 
     # 1. Build sphere geometry
     geo = build_sphere_geometry(size, radius)
@@ -88,15 +68,14 @@ def render_planet_image(size=512, seed=None, planet_type=None, rings=None):
         canvas = Image.alpha_composite(canvas, final)
         final = canvas
 
-    metadata = {
-        "name": name,
-        "type": planet_type,
-        "temperature": temperature,
-        "radius": radius,
-        "rings": has_rings,
-        "moons": has_moons,
-        "atmosphere": traits["atmosphere"],
-        "seed": seed,
-    }
+    return final
 
-    return final, metadata
+
+def render_planet_image(size=512, seed=None, planet_type=None, rings=None, **options):
+    """Roll a planet from a seed and render it. Returns (image, metadata).
+
+    planet_type, rings and any other PlanetSpec field override the rolled
+    value when given.
+    """
+    spec = PlanetSpec.random(seed, type=planet_type, rings=rings, **options)
+    return render_planet(spec, size), spec.to_dict()

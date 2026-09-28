@@ -1,0 +1,59 @@
+"""Everything that describes one planet, drawn from a single seed."""
+
+import random
+from dataclasses import asdict, dataclass, fields
+
+from .names import generate_name
+from .types import PLANET_TYPES
+
+
+@dataclass
+class PlanetSpec:
+    seed: int
+    name: str
+    type: str
+    temperature: int
+    rings: bool
+    moons: int
+    # Planet radius as a fraction of the image width, so the same seed looks
+    # the same at every image size.
+    scale: float
+
+    @property
+    def atmosphere(self):
+        return PLANET_TYPES[self.type]["atmosphere"]
+
+    @classmethod
+    def random(cls, seed=None, **overrides):
+        """Roll a planet from a seed. Any field passed in overrides (and not
+        None) replaces the rolled value; the other fields stay the same as
+        they would be without the override."""
+        if seed is None:
+            seed = random.randint(0, 999_999)
+        rng = random.Random(seed)
+
+        planet_type = rng.choice(list(PLANET_TYPES.keys()))
+        traits = PLANET_TYPES[overrides.get("type") or planet_type]
+        values = {
+            "seed": seed,
+            "type": planet_type,
+            "name": generate_name(rng),
+            "temperature": rng.randint(*traits["temperature"]),
+            "rings": rng.random() < 0.2,
+            "moons": rng.randint(0, 5),
+        }
+        ringed = overrides.get("rings")
+        if ringed is None:
+            ringed = values["rings"]
+        values["scale"] = rng.uniform(0.22, 0.30) if ringed else rng.uniform(0.30, 0.45)
+
+        unknown = set(overrides) - {f.name for f in fields(cls)}
+        if unknown:
+            raise TypeError(f"unknown planet option(s): {', '.join(sorted(unknown))}")
+        values.update({k: v for k, v in overrides.items() if v is not None})
+        return cls(**values)
+
+    def to_dict(self):
+        data = asdict(self)
+        data["atmosphere"] = self.atmosphere
+        return data
