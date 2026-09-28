@@ -188,7 +188,7 @@ GAS_GIANT_PALETTES = [
 
 # ── Name generator ───────────────────────────────────────────────────────────
 
-def generate_name():
+def generate_name(rng=random):
     """Generate a random planet name"""
     prefixes = [
         "Xen", "Astra", "Nova", "Cryo", "Vul", "Zar", "Terra", "Oph", "Ere", "Quar",
@@ -201,17 +201,17 @@ def generate_name():
         "ith", "eth", "oth", "ir", "ur", "ys", "ix", "ox", "yn", "ria",
     ]
 
-    base_name = random.choice(prefixes) + random.choice(suffixes)
+    base_name = rng.choice(prefixes) + rng.choice(suffixes)
 
-    if random.random() < 0.3:
-        secondary = random.choice([
+    if rng.random() < 0.3:
+        secondary = rng.choice([
             " Prime", " Alpha", " Beta", " Gamma", " Delta", " Epsilon",
             " I", " II", " III", " IV", " V", " VI", " VII", " VIII", " IX", " X",
             " Major", " Minor", " Omega", " Sigma", " Tau",
         ])
         base_name += secondary
 
-    return base_name + "-" + str(random.randint(1, 999))
+    return base_name + "-" + str(rng.randint(1, 999))
 
 
 # ── Pure NumPy Perlin noise ──────────────────────────────────────────────────
@@ -731,22 +731,29 @@ def render_rings(size, planet_radius, seed):
 
 # ── Main rendering pipeline ──────────────────────────────────────────────────
 
-def render_planet_image(size=512):
-    """Render a complete planet image with metadata."""
-    planet_type = random.choice(list(PLANET_TYPES.keys()))
+def render_planet_image(size=512, seed=None, planet_type=None):
+    """Render a complete planet image with metadata.
+
+    The same seed (and type, if given) always produces the same planet.
+    """
+    if seed is None:
+        seed = random.randint(0, 999_999)
+    rng = random.Random(seed)
+
+    type_pick = rng.choice(list(PLANET_TYPES.keys()))
+    planet_type = planet_type or type_pick
     traits = PLANET_TYPES[planet_type]
 
-    name = generate_name()
+    name = generate_name(rng)
     temp_range = traits["temperature"]
-    temperature = random.randint(temp_range[0], temp_range[1])
-    has_rings = random.random() < 0.2
-    has_moons = random.randint(0, 5)
-    seed = random.randint(0, 10000)
+    temperature = rng.randint(temp_range[0], temp_range[1])
+    has_rings = rng.random() < 0.2
+    has_moons = rng.randint(0, 5)
 
     if has_rings:
-        radius = random.randint(int(size * 0.22), int(size * 0.30))
+        radius = rng.randint(int(size * 0.22), int(size * 0.30))
     else:
-        radius = random.randint(int(size * 0.30), int(size * 0.45))
+        radius = rng.randint(int(size * 0.30), int(size * 0.45))
 
     # 1. Build sphere geometry
     geo = build_sphere_geometry(size, radius)
