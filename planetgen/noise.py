@@ -103,3 +103,25 @@ def fbm_noise_3d(x, y, z, perm, octaves=6, persistence=0.5, lacunarity=2.0):
         frequency *= lacunarity
 
     return total / max_amp
+
+
+def ridged_noise_3d(x, y, z, perm, octaves=5, lacunarity=2.1, gain=2.0):
+    """Ridged multifractal noise in 0..1: sharp crests where Perlin noise
+    crosses zero, like mountain chains or cracks. Each octave is weighted by
+    the one before it, so detail gathers along the ridges."""
+    total = np.zeros_like(x, dtype=np.float64)
+    weight = np.ones_like(x, dtype=np.float64)
+    amplitude = 1.0
+    frequency = 1.0
+    max_amp = 0.0
+
+    for _ in range(octaves):
+        ridge = 1.0 - np.abs(perlin_noise_3d(x * frequency, y * frequency, z * frequency, perm))
+        ridge = ridge * ridge * weight
+        weight = np.clip(ridge * gain, 0.0, 1.0)
+        total += ridge * amplitude
+        max_amp += amplitude
+        amplitude *= 0.5
+        frequency *= lacunarity
+
+    return total / max_amp

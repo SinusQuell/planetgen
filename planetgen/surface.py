@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from .noise import _build_perm_table, fbm_noise_3d
+from .noise import _build_perm_table, fbm_noise_3d, ridged_noise_3d
 from .types import COLOR_RAMPS, GAS_GIANT_PALETTES, PLANET_TYPES
 from .util import color_ramp_lookup, smoothstep
 
@@ -31,41 +31,9 @@ def generate_surface(geo, planet_type, seed):
         n = len(color)
         return Surface(color, np.zeros(n), np.full(n, land_specular), np.zeros(n, dtype=bool))
 
-    # ── Domain warping ───────────────────────────────────────────────────
     rng = np.random.RandomState((seed + 7777) & 0x7FFFFFFF)
-    offx, offy, offz = rng.uniform(-1000, 1000, 3)
-
-    warp_perm = _build_perm_table(seed + 1000)
-    warp_scale = 2.5
-    warp_mag = 0.4
-
-    wx = fbm_noise_3d(px * warp_scale + offx, py * warp_scale + offy, pz * warp_scale + offz,
-                       warp_perm, octaves=3) * warp_mag
-    wy = fbm_noise_3d(px * warp_scale + offx + 50, py * warp_scale + offy + 50, pz * warp_scale + offz + 50,
-                       warp_perm, octaves=3) * warp_mag
-    wz = fbm_noise_3d(px * warp_scale + offx + 100, py * warp_scale + offy + 100, pz * warp_scale + offz + 100,
-                       warp_perm, octaves=3) * warp_mag
-
-    wpx = px + wx
-    wpy = py + wy
-    wpz = pz + wz
-
-    # ── Multi-scale terrain noise ────────────────────────────────────────
-    scale1 = 4.0
-    height = fbm_noise_3d(wpx * scale1 + offx, wpy * scale1 + offy, wpz * scale1 + offz,
-                           perm, octaves=7, persistence=0.5, lacunarity=2.0)
-
-    mid_perm = _build_perm_table(seed + 100)
-    scale2 = 10.0
-    mid = fbm_noise_3d(wpx * scale2 + offx * 0.5, wpy * scale2 + offy * 0.5, wpz * scale2 + offz * 0.5,
-                        mid_perm, octaves=5, persistence=0.55, lacunarity=2.2) * 0.35
-
-    fine_perm = _build_perm_table(seed + 200)
-    scale3 = 18.0
-    fine = fbm_noise_3d(wpx * scale3 + offx * 0.25, wpy * scale3 + offy * 0.25, wpz * scale3 + offz * 0.25,
-                         fine_perm, octaves=4, persistence=0.6, lacunarity=2.4) * 0.15
-
-    height = height + mid + fine
+    offset = rng.uniform(-1000, 1000, 3)
+    height = terrain_height(px, py, pz, seed, offset, traits.get("terrain", "rolling"))
 
     # ── Color ramp lookup ────────────────────────────────────────────────
     ramp = COLOR_RAMPS.get(planet_type)
@@ -75,6 +43,7 @@ def generate_surface(geo, planet_type, seed):
     r, g, b = color_ramp_lookup(height, ramp)
 
     # Add subtle noise variation to break contour uniformity
+    offx, offy, offz = offset
     var_perm = _build_perm_table(seed + 300)
     variation = fbm_noise_3d(px * 15 + offx, py * 15 + offy, pz * 15 + offz,
                               var_perm, octaves=3) * 12.0
@@ -92,6 +61,47 @@ def generate_surface(geo, planet_type, seed):
     specular = np.where(liquid, 0.8, land_specular)
 
     return Surface(color, height, specular, liquid)
+
+
+def _noise(kind, px, py, pz, scale, offset, seed, **kwargs):
+    """Sample fbm or ridged noise on the unit sphere at a given scale."""
+    fn = ridged_noise_3d if kind == "ridged" else fbm_noise_3d
+    ox, oy, oz = offset
+    return fn(px * scale + ox, py * scale + oy, pz * scale + oz, _build_perm_table(seed), **kwargs)
+
+
+def terrain_height(px, py, pz, seed, offset, style):
+    """Terrain height, roughly -1..1, with 0 near sea level for the ramps.
+
+    Styles:
+      continents  big land masses with mountain chains inland
+      rolling     hills and basins everywhere, no clear continents
+      cracked     crust broken by deep channels (lava or acid fills them)
+    """
+    # A gentle warp keeps coastlines and ridges from looking grid-aligned.
+    warp = 0.18
+    wx = _noise("fbm", px, py, pz, 1.7, offset, seed + 1000, octaves=3) * warp
+    wy = _noise("fbm", px, py, pz, 1.7, offset + 50, seed + 1000, octaves=3) * warp
+    wz = _noise("fbm", px, py, pz, 1.7, offset + 100, seed + 1000, octaves=3) * warp
+    qx, qy, qz = px + wx, py + wy, pz + wz
+
+    detail = _noise("fbm", qx, qy, qz, 7.0, offset, seed + 200, octaves=6, persistence=0.5)
+
+    if style == "continents":
+        land = _noise("fbm", qx, qy, qz, 1.4, offset, seed, octaves=5, persistence=0.55) * 1.6
+        ridges = _noise("ridged", qx, qy, qz, 3.2, offset * 0.5, seed + 100, octaves=6)
+        inland = smoothstep(0.02, 0.35, land)
+        return land + detail * 0.22 + ridges * inland * 0.4
+
+    if style == "cracked":
+        crust = _noise("fbm", qx, qy, qz, 2.2, offset, seed, octaves=5) * 0.7
+        cracks = _noise("ridged", qx, qy, qz, 3.0, offset * 0.5, seed + 100, octaves=5)
+        # Push the crust up and cut channels where the ridged noise peaks.
+        return 0.4 + crust + detail * 0.2 - np.power(cracks, 3.0) * 1.3
+
+    hills = _noise("fbm", qx, qy, qz, 2.2, offset, seed, octaves=6, persistence=0.52)
+    ridges = _noise("ridged", qx, qy, qz, 2.8, offset * 0.5, seed + 100, octaves=5)
+    return hills * 1.1 + (ridges - 0.6) * 0.4 + detail * 0.2
 
 
 def _generate_gas_giant_surface(geo, seed, perm):

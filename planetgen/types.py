@@ -3,6 +3,7 @@
 # Optional material keys per type:
 #   sea_level      height below which the surface is liquid (flat and glossy)
 #   land_specular  how glossy the solid surface is, 0..1 (default 0.04)
+#   terrain        height field style, see surface.terrain_height (default rolling)
 PLANET_TYPES = {
     "lava": {
         "base_color": (255, 80, 0),
@@ -12,6 +13,7 @@ PLANET_TYPES = {
         "atmo_strength": 0.3,
         "sea_level": -0.05,
         "land_specular": 0.03,
+        "terrain": "cracked",
     },
     "barren": {
         "base_color": (180, 140, 100),
@@ -35,6 +37,7 @@ PLANET_TYPES = {
         "atmo_color": (100, 150, 255),
         "atmo_strength": 0.5,
         "sea_level": -0.01,
+        "terrain": "continents",
     },
     "forest": {
         "base_color": (50, 150, 60),
@@ -43,6 +46,7 @@ PLANET_TYPES = {
         "atmo_color": (100, 160, 255),
         "atmo_strength": 0.45,
         "sea_level": -0.05,
+        "terrain": "continents",
     },
     "desert": {
         "base_color": (230, 200, 100),
@@ -66,6 +70,7 @@ PLANET_TYPES = {
         "atmo_color": (120, 220, 80),
         "atmo_strength": 0.4,
         "sea_level": -0.05,
+        "terrain": "cracked",
     },
     "crystal": {
         "base_color": (180, 255, 255),
@@ -83,6 +88,7 @@ PLANET_TYPES = {
         "atmo_strength": 0.35,
         "sea_level": -0.05,
         "land_specular": 0.03,
+        "terrain": "cracked",
     },
 }
 
