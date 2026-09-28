@@ -6,7 +6,7 @@ import os
 import sys
 
 from .background import BACKGROUNDS
-from .output import open_file, save_animation, save_planet
+from .output import contact_sheet, open_file, save_animation, save_planet
 from .render import render_planet, render_spin
 from .spec import PlanetSpec
 from .types import PLANET_TYPES
@@ -71,6 +71,8 @@ def build_parser():
                         help="animation frames per second (default: 20)")
     parser.add_argument("-o", "--out", default="export",
                         help="output folder (default: export)")
+    parser.add_argument("--sheet", action="store_true",
+                        help="also save all planets of the run side by side in one image")
     parser.add_argument("--open", action="store_true",
                         help="open the image in your default viewer when done")
     parser.add_argument("-q", "--quiet", action="store_true",
@@ -142,6 +144,8 @@ def main(argv=None):
             print("--from renders one saved planet; drop --count and --seed", file=sys.stderr)
             return 2
 
+    sheet_images, sheet_labels = [], []
+    last_path = None
     for i in range(args.count):
         # With a fixed seed and a count above 1, step the seed so each planet
         # differs but the whole batch is still reproducible.
@@ -168,7 +172,18 @@ def main(argv=None):
             if args.count == 1:
                 print(json.dumps(metadata, indent=4))
 
-        if args.open and i == args.count - 1:
-            open_file(image_path)
+        last_path = image_path
+        if args.sheet:
+            sheet_images.append(image)
+            sheet_labels.append(f"{spec.name} ({spec.type.replace('_', ' ')})")
+
+    if args.sheet:
+        cell = min(args.size, 320)
+        last_path = os.path.join(args.out, "sheet.png")
+        contact_sheet(sheet_images, sheet_labels, cell).save(last_path)
+        print(last_path if args.quiet else f"Overview: {last_path}")
+
+    if args.open and last_path:
+        open_file(last_path)
 
     return 0

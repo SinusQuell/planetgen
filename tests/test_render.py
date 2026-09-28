@@ -95,3 +95,9 @@ def test_cli_from_file_with_override(tmp_path):
     data = json.loads(next(out.glob("*.json")).read_text())
     assert data["tilt"] == 33
     assert data["seed"] == 8
+
+
+def test_cli_sheet(tmp_path):
+    assert main(["-n", "3", "--seed", "1", "--size", "48", "--sheet", "-q",
+                 "--out", str(tmp_path)]) == 0
+    assert (tmp_path / "sheet.png").exists()

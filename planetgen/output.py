@@ -1,9 +1,12 @@
 """Saving planets to disk."""
 
 import json
+import math
 import os
 import platform
 import subprocess
+
+from PIL import Image, ImageDraw, ImageFont
 
 
 def save_planet(planet_img, metadata, output_dir="export"):
@@ -37,6 +40,28 @@ def save_animation(frames, path, fps=20):
         first.save(path, save_all=True, append_images=rest, duration=duration, loop=0,
                    quality=90)
     return path
+
+
+def contact_sheet(images, labels, cell=256, columns=None):
+    """Lay planets out in a labelled grid on a dark background."""
+    count = len(images)
+    columns = columns or min(count, max(1, math.ceil(math.sqrt(count))))
+    rows = math.ceil(count / columns)
+    label_height = max(18, cell // 10)
+    sheet = Image.new("RGBA", (columns * cell, rows * (cell + label_height)), (10, 11, 18, 255))
+    draw = ImageDraw.Draw(sheet)
+    try:
+        font = ImageFont.load_default(size=max(10, label_height * 2 // 3))
+    except TypeError:  # Pillow before 10.1 has only the fixed bitmap font
+        font = ImageFont.load_default()
+
+    for i, (image, label) in enumerate(zip(images, labels)):
+        x = (i % columns) * cell
+        y = (i // columns) * (cell + label_height)
+        sheet.alpha_composite(image.resize((cell, cell), Image.LANCZOS), (x, y))
+        width = draw.textlength(label, font=font)
+        draw.text((x + (cell - width) / 2, y + cell), label, fill=(200, 205, 220), font=font)
+    return sheet
 
 
 def open_file(path):
