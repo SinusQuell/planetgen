@@ -3,6 +3,7 @@
 import numpy as np
 from PIL import Image
 
+from .background import render_background
 from .geometry import build_sphere_geometry, orientation_matrix
 from .lighting import (
     apply_atmosphere, apply_lighting, atmosphere_color, light_direction, render_outer_glow,
@@ -14,8 +15,11 @@ from .surface import generate_clouds, generate_surface
 from .types import PLANET_TYPES
 
 
-def render_planet(spec, size=512):
-    """Render a PlanetSpec to a square RGBA image."""
+def render_planet(spec, size=512, background="transparent"):
+    """Render a PlanetSpec to a square RGBA image.
+
+    background is one of background.BACKGROUNDS.
+    """
     planet_type = spec.type
     traits = PLANET_TYPES[planet_type]
     seed = spec.seed
@@ -81,6 +85,10 @@ def render_planet(spec, size=512):
         final = Image.alpha_composite(final, _to_image(front_rings))
 
     final = composite_moons(final, [m for m in moons if m["depth"] >= 0], light)
+
+    backdrop = render_background(size, seed, background)
+    if backdrop is not None:
+        final = Image.alpha_composite(backdrop, final)
     return final
 
 
@@ -100,11 +108,12 @@ def _to_image(rgba):
     return Image.fromarray(np.round(np.clip(rgba, 0, 1) * 255).astype(np.uint8), "RGBA")
 
 
-def render_planet_image(size=512, seed=None, planet_type=None, rings=None, **options):
+def render_planet_image(size=512, seed=None, planet_type=None, rings=None,
+                        background="transparent", **options):
     """Roll a planet from a seed and render it. Returns (image, metadata).
 
     planet_type, rings and any other PlanetSpec field override the rolled
     value when given.
     """
     spec = PlanetSpec.random(seed, type=planet_type, rings=rings, **options)
-    return render_planet(spec, size), spec.to_dict()
+    return render_planet(spec, size, background), spec.to_dict()

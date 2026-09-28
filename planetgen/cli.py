@@ -4,6 +4,7 @@ import argparse
 import json
 import sys
 
+from .background import BACKGROUNDS
 from .output import open_file, save_planet
 from .render import render_planet_image
 from .types import PLANET_TYPES
@@ -54,6 +55,8 @@ def build_parser():
                         help="number of moons (default: random, 0 to 5)")
     parser.add_argument("--hide-moons", action="store_true",
                         help="leave the moons out of the picture")
+    parser.add_argument("-b", "--background", choices=BACKGROUNDS, default="transparent",
+                        help="what goes behind the planet (default: transparent)")
     parser.add_argument("-o", "--out", default="export",
                         help="output folder (default: export)")
     parser.add_argument("--open", action="store_true",
@@ -102,7 +105,7 @@ def main(argv=None):
         seed = None if args.seed is None else args.seed + i
         image, metadata = render_planet_image(
             size=args.size, seed=seed, planet_type=args.type, rings=args.rings,
-            **spec_options(args),
+            background=args.background, **spec_options(args),
         )
         image_path, json_path = save_planet(image, metadata, args.out)
 
