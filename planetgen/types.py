@@ -5,6 +5,7 @@
 #   land_specular  how glossy the solid surface is, 0..1 (default 0.04)
 #   glow           color the liquid gives off, visible on the night side
 #   ice_caps       polar ice that grows as the planet gets colder
+#   craters        how many impact craters to scatter over the surface
 #   terrain        height field style, see surface.terrain_height (default rolling)
 PLANET_TYPES = {
     "lava": {
@@ -24,6 +25,7 @@ PLANET_TYPES = {
         "atmosphere": "none",
         "atmo_color": (0, 0, 0),
         "atmo_strength": 0.0,
+        "craters": 140,
     },
     "ice": {
         "base_color": (200, 240, 255),
@@ -32,6 +34,7 @@ PLANET_TYPES = {
         "atmo_color": (180, 210, 255),
         "atmo_strength": 0.3,
         "land_specular": 0.25,
+        "craters": 45,
     },
     "ocean": {
         "base_color": (0, 80, 200),
@@ -60,6 +63,7 @@ PLANET_TYPES = {
         "atmo_color": (220, 180, 120),
         "atmo_strength": 0.25,
         "ice_caps": True,
+        "craters": 12,
     },
     "gas_giant": {
         "base_color": (255, 180, 100),
@@ -86,6 +90,7 @@ PLANET_TYPES = {
         "atmo_color": (160, 230, 255),
         "atmo_strength": 0.3,
         "land_specular": 0.45,
+        "craters": 20,
     },
     "volcanic": {
         "base_color": (255, 50, 50),

@@ -38,6 +38,10 @@ def generate_surface(geo, planet_type, seed, temperature=None):
     rng = np.random.RandomState((seed + 7777) & 0x7FFFFFFF)
     offset = rng.uniform(-1000, 1000, 3)
     height = terrain_height(px, py, pz, seed, offset, traits.get("terrain", "rolling"))
+    crater_floor = np.zeros_like(height)
+    if traits.get("craters"):
+        dent, crater_floor = crater_field(px, py, pz, seed, traits["craters"])
+        height = height + dent
 
     # ── Color ramp lookup ────────────────────────────────────────────────
     ramp = COLOR_RAMPS.get(planet_type)
@@ -55,6 +59,7 @@ def generate_surface(geo, planet_type, seed, temperature=None):
     g = np.clip(g + variation * 0.8, 0, 255)
     b = np.clip(b + variation * 0.6, 0, 255)
     color = np.stack([r, g, b], axis=-1)
+    color *= (1.0 - 0.18 * crater_floor)[:, None]
 
     sea_level = traits.get("sea_level")
     if sea_level is None:
@@ -81,6 +86,45 @@ def generate_surface(geo, planet_type, seed, temperature=None):
         emission = np.array(glow, dtype=np.float64) * heat[:, None]
 
     return Surface(color, height, specular, liquid, emission)
+
+
+def crater_field(px, py, pz, seed, count):
+    """Scatter impact craters over the sphere.
+
+    Returns (height_change, floor): the dent each pixel gets and how deep
+    inside a crater bowl it sits (0..1), used to darken crater floors.
+    Sizes follow a power law, so there are many small craters and few big
+    ones.
+    """
+    rng = np.random.RandomState((seed + 9191) & 0x7FFFFFFF)
+    centers = rng.normal(size=(count, 3))
+    centers /= np.linalg.norm(centers, axis=1, keepdims=True)
+    # Angular radius in radians, between about 1 and 17 degrees
+    radii = np.clip(0.02 * (1.0 - rng.uniform(0, 0.97, count)) ** (-1.0 / 1.3), 0.02, 0.3)
+    # Older craters are shallower and softer.
+    freshness = rng.uniform(0.35, 1.0, count)
+
+    change = np.zeros_like(px)
+    floor = np.zeros_like(px)
+    # Biggest first, so small craters punch into big ones rather than the
+    # other way around.
+    for i in np.argsort(-radii):
+        cx, cy, cz = centers[i]
+        radius = radii[i]
+        cos_angle = px * cx + py * cy + pz * cz
+        near = np.nonzero(cos_angle > np.cos(radius * 1.8))[0]
+        if near.size == 0:
+            continue
+        d = np.arccos(np.clip(cos_angle[near], -1.0, 1.0)) / radius
+
+        depth = 5.0 * radius * freshness[i]
+        bowl = np.clip(1.0 - d * d, 0.0, 1.0)
+        rim = np.exp(-((d - 1.0) / 0.22) ** 2)
+        dent = depth * (0.35 * rim - bowl)
+        # Flatten what was there before inside the bowl
+        change[near] = change[near] * (1.0 - bowl) + dent
+        floor[near] = np.maximum(floor[near], bowl * freshness[i])
+    return change, floor
 
 
 def polar_ice(px, py, pz, seed, offset, temperature, height):
