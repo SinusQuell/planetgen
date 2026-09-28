@@ -19,12 +19,8 @@ This project generates a **512×512 pixel image of a random planet** using proce
 Install dependencies:
 
 ```bash
-pip install pillow numpy noise
+pip install -r requirements.txt
 ```
-
-Optional:
-- `matplotlib` (for previewing)
-- `json` (built-in)
 
 ---
 
