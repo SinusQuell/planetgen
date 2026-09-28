@@ -45,6 +45,11 @@ def build_parser():
                         help="cloud cover from 0 to 1 (types without weather ignore it)")
     parser.add_argument("--atmosphere", type=float, metavar="DENSITY",
                         help="atmosphere thickness multiplier (default 1, 0 = none)")
+    cities = parser.add_mutually_exclusive_group()
+    cities.add_argument("--cities", dest="cities", action="store_true", default=None,
+                        help="show city lights on the night side")
+    cities.add_argument("--no-cities", dest="cities", action="store_false",
+                        help="an uninhabited planet")
     parser.add_argument("-o", "--out", default="export",
                         help="output folder (default: export)")
     parser.add_argument("--open", action="store_true",
@@ -66,7 +71,8 @@ def spec_options(args):
     """PlanetSpec overrides from the command line."""
     options = {"tilt": args.tilt, "inclination": args.inclination, "rotation": args.rotation,
                "relief": args.relief, "atmosphere_density": args.atmosphere,
-               "clouds": args.clouds, "hue": args.hue}
+               "clouds": args.clouds, "hue": args.hue,
+               "cities": args.cities}
     if args.light is not None:
         options["light_azimuth"], options["light_elevation"] = args.light
     return options

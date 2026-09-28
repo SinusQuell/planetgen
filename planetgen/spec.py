@@ -34,6 +34,8 @@ class PlanetSpec:
     # Degrees to rotate the ground colors by. Small by default; large values
     # give alien color schemes.
     hue: float
+    # Inhabited: city lights on the night side.
+    cities: bool
     # How strongly terrain height shades the surface; 0 renders it flat.
     relief: float = 1.0
     # Multiplies how thick the planet type's atmosphere looks; 0 removes it.
@@ -78,6 +80,7 @@ class PlanetSpec:
         values["ring_outer"] = round(rng.uniform(1.9, 2.4), 2)
         values["clouds"] = round(rng.uniform(*traits.get("clouds", (0.0, 0.0))), 2)
         values["hue"] = round(rng.uniform(-12, 12), 1)
+        values["cities"] = rng.random() < traits.get("cities", 0.0)
 
         unknown = set(overrides) - {f.name for f in fields(cls)}
         if unknown:

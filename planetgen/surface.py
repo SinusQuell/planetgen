@@ -18,13 +18,15 @@ class Surface:
     specular: np.ndarray  # (N,) glossiness, 0..1
     liquid: np.ndarray    # (N,) bool, True for seas (water, lava, acid)
     emission: np.ndarray = None  # (N, 3) light given off, 0..255, or None
+    night_lights: np.ndarray = None  # (N, 3) light that only shows at night
 
 
-def generate_surface(geo, planet_type, seed, temperature=None, hue=0.0):
+def generate_surface(geo, planet_type, seed, temperature=None, hue=0.0, cities=False):
     """Generate the surface material for all masked pixels.
 
     temperature (°C) sizes the polar ice caps on types that have them.
     hue rotates the ground colors by that many degrees.
+    cities lights up settlements on the night side.
     """
     px, py, pz = geo["px"], geo["py"], geo["pz"]
     traits = PLANET_TYPES[planet_type]
@@ -88,7 +90,12 @@ def generate_surface(geo, planet_type, seed, temperature=None, hue=0.0):
         heat = smoothstep(-0.03, 0.25, depth)
         emission = np.array(glow, dtype=np.float64) * heat[:, None]
 
-    return Surface(color, height, specular, liquid, emission)
+    night_lights = None
+    if cities:
+        habitable = ~liquid & (specular < 0.2)
+        night_lights = city_lights(px, py, pz, seed, height, habitable)
+
+    return Surface(color, height, specular, liquid, emission, night_lights)
 
 
 def crater_field(px, py, pz, seed, count):
@@ -128,6 +135,17 @@ def crater_field(px, py, pz, seed, count):
         change[near] = change[near] * (1.0 - bowl) + dent
         floor[near] = np.maximum(floor[near], bowl * freshness[i])
     return change, floor
+
+
+def city_lights(px, py, pz, seed, height, habitable):
+    """Warm specks of settlements, clustered along coasts and lowlands."""
+    offset = np.random.RandomState((seed + 1234) & 0x7FFFFFFF).uniform(-500, 500, 3)
+    regions = _noise("fbm", px, py, pz, 3.0, offset, seed + 700, octaves=3)
+    towns = _noise("fbm", px, py, pz, 60.0, offset, seed + 710, octaves=2)
+    lowland = smoothstep(0.35, 0.02, height)
+    density = smoothstep(0.0, 0.25, regions) * lowland * habitable
+    lit = smoothstep(0.05, 0.35, towns + density * 0.3 - 0.15) * density
+    return np.array([255.0, 196.0, 120.0]) * lit[:, None]
 
 
 def polar_ice(px, py, pz, seed, offset, temperature, height):

@@ -11,6 +11,7 @@
 #                  the named set in BAND_PALETTES
 #   clouds         range the cloud coverage (0..1) is rolled from
 #   cloud_color    color of the cloud tops
+#   cities         chance that the planet is inhabited and shows city lights
 #   terrain        height field style, see surface.terrain_height (default rolling)
 PLANET_TYPES = {
     "lava": {
@@ -49,6 +50,7 @@ PLANET_TYPES = {
         "terrain": "continents",
         "ice_caps": 0,
         "clouds": (0.35, 0.65), "cloud_color": (250, 250, 252),
+        "cities": 0.3,
     },
     "forest": {
         "temperature": (0, 30),
@@ -59,6 +61,7 @@ PLANET_TYPES = {
         "terrain": "continents",
         "ice_caps": 0,
         "clouds": (0.3, 0.6), "cloud_color": (250, 250, 250),
+        "cities": 0.3,
     },
     "desert": {
         "temperature": (40, 60),

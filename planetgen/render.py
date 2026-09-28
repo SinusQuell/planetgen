@@ -26,7 +26,8 @@ def render_planet(spec, size=512):
     geo = build_sphere_geometry(size, radius, orientation)
 
     # 2. Generate the surface material
-    surface = generate_surface(geo, planet_type, seed, spec.temperature, spec.hue)
+    surface = generate_surface(geo, planet_type, seed, spec.temperature, spec.hue,
+                               spec.cities)
 
     # 3. Clouds and the shadows they cast
     light = light_direction(spec.light_azimuth, spec.light_elevation)

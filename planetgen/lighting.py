@@ -99,6 +99,9 @@ def apply_lighting(surface, geo, light, shadow=None, relief=1.0):
     if surface.emission is not None:
         # Glow shows most where the sun is not already washing it out.
         rgb = rgb + surface.emission * (1.0 - 0.6 * diffuse)[:, None]
+    if surface.night_lights is not None:
+        darkness = (1.0 - np.clip(diffuse * 4.0, 0.0, 1.0)) ** 2
+        rgb = rgb + surface.night_lights * darkness[:, None]
     return np.clip(rgb, 0, 255), diffuse
 
 
