@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "planetgen"
+version = "2.0.0"
+description = "Procedural planet images with metadata, from the command line or a designer window"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = ["numpy>=1.24", "pillow>=10.0"]
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+
+[project.scripts]
+planetgen = "planetgen.cli:main"
+
+[project.gui-scripts]
+planetgen-gui = "planetgen.gui:main"
+
+[tool.setuptools]
+packages = ["planetgen"]

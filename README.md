@@ -1,173 +1,188 @@
-# 🪐 Random Planet Generator (Python)
+# Planet Generator
 
-This project generates a **512×512 pixel image of a random planet** using procedural noise and random parameters. It produces both an image (`.png`) and metadata (`.json`) describing the planet.
+Procedural planet images from a single seed. Every planet comes with a JSON file describing it, and the same seed always gives the same planet, so you can come back to one later and render it bigger, turn it, or change its lighting.
 
----
+![Eight generated planets](docs/showcase.jpg)
 
-## ⚙️ Features
+What it draws:
 
-- Procedural **Perlin noise-based texture**
-- **10 planet types**: lava, barren, ice, ocean, forest, desert, gas giant, toxic, crystal, volcanic
-- Stats like **temperature, radius, moons, rings, atmosphere, size etc.**
-- Automatic **planet name generation**
-- Exports both `.png` and `.json` files with stats into `/export`
+- 12 planet types, from cratered rock and ice worlds to ocean planets with continents, lava worlds with glowing seas, and banded gas and ice giants with storms
+- Terrain with continents, ridged mountain chains, impact craters and polar ice caps that grow or shrink with the planet's temperature
+- Lighting from any direction, relief shading, glinting seas, a sunlit atmosphere with sunset colors along the day/night line, and a glowing rim when the sun is behind the planet
+- Clouds that cast shadows, city lights on the night side of inhabited worlds
+- Rings with fine ringlets and gaps that are lit by the sun, shaded by the planet and throw their own shadow onto it
+- Moons in orbit, an axial tilt, and optional star or nebula backgrounds
+- Animated spins (GIF or WebP) and overview sheets of a whole batch
 
----
+## Install
 
-## 🧰 Requirements
-
-Install dependencies:
+Needs Python 3.9 or newer.
 
 ```bash
-pip install pillow numpy noise
+pip install -r requirements.txt
 ```
 
-Optional:
-- `matplotlib` (for previewing)
-- `json` (built-in)
+Or install it as a package, which adds the `planetgen` and `planetgen-gui` commands:
 
----
+```bash
+pip install .
+```
 
-## 🚀 Usage
+## The designer window
 
-Run the planet generator:
+```bash
+python -m planetgen.gui
+```
+
+Pick a type, roll new planets, and drag the sliders to change the sun, tilt, clouds, colors and so on. The preview updates as you go. "Save image" writes the PNG and its JSON file at the export size you picked; "Save spinning animation" writes a GIF or WebP of one full turn.
+
+![The designer window](docs/designer.png)
+
+## Command line
 
 ```bash
 python planet_generator.py
 ```
 
-This will:
-1. Generate a random planet with unique characteristics
-2. Create an `export/` directory (if it doesn't exist)
-3. Save a PNG image of the planet
-4. Save a JSON file with planet metadata
-5. Print the planet details to the console
+This saves a random planet to `export/` as `<name>.png` and `<name>.json`. `python -m planetgen` and the `planetgen` command do the same. Some examples:
 
----
+```bash
+# A ringed gas giant on a starfield, 1024 pixels wide
+planetgen --type gas_giant --rings --size 1024 --background stars
 
-## 🧩 Project Structure
+# The same planet every time
+planetgen --seed 4242
 
-```
-.
-├── planet_generator.py   # Main generator script
-├── README.md            # This file
-└── export/              # Generated planets (created automatically)
-    ├── PlanetName-123.png
-    └── PlanetName-123.json
-```
+# A thin crescent: sun behind and to the left
+planetgen --seed 4242 --light 180 -40
 
----
+# Twelve random planets plus one overview image of all of them
+planetgen --count 12 --sheet --background stars
 
-## 🧠 How It Works
+# An animation of the planet turning once, 48 frames
+planetgen --seed 4242 --spin 48
 
-### 1. Define Planet Types
-
-Each planet type has a base color, temperature range, and atmospheric type:
-
-```python
-PLANET_TYPES = {
-    "lava": {"base_color": (255, 80, 0), "temperature": (1000, 2000), "atmosphere": "thin"},
-    "barren": {"base_color": (180, 140, 100), "temperature": (100, 400), "atmosphere": "none"},
-    "ice": {"base_color": (200, 240, 255), "temperature": (-200, 0), "atmosphere": "thin"},
-    "ocean": {"base_color": (0, 80, 200), "temperature": (0, 100), "atmosphere": "thick"},
-    "forest": {"base_color": (50, 150, 60), "temperature": (0, 30), "atmosphere": "oxygen-rich"},
-    "desert": {"base_color": (230, 200, 100), "temperature": (40, 60), "atmosphere": "thin"},
-    "gas_giant": {"base_color": (255, 180, 100), "temperature": (-100, 400), "atmosphere": "dense"},
-    "toxic": {"base_color": (100, 255, 100), "temperature": (100, 600), "atmosphere": "poisonous"},
-    "crystal": {"base_color": (180, 255, 255), "temperature": (-50, 100), "atmosphere": "thin"},
-    "volcanic": {"base_color": (255, 50, 50), "temperature": (800, 1500), "atmosphere": "sulfurous"}
-}
+# Re-render a saved planet larger, with a different tilt
+planetgen --from export/Novaar-174.json --size 2048 --tilt 20
 ```
 
-### 2. Generate Random Planet Names
+Options that describe the planet:
 
-Creates unique names using prefixes and suffixes:
+| Option | What it does |
+| --- | --- |
+| `-t, --type TYPE` | Planet type (see `--list-types`) |
+| `-s, --seed SEED` | Seed for a reproducible planet |
+| `-f, --from JSON` | Start from a planet's saved JSON file |
+| `--rings`, `--no-rings` | Force rings on or off |
+| `--light AZ EL` | Sun direction: azimuth counterclockwise from the right edge, elevation toward you (90 fully lit, 0 half lit, negative for a crescent) |
+| `--tilt DEG` | Axial tilt, counterclockwise in the image |
+| `--inclination DEG` | How far the north pole leans toward you (0 shows rings edge-on) |
+| `--rotation DEG` | Turns the planet to show a different side |
+| `--clouds COVER` | Cloud cover from 0 to 1 |
+| `--atmosphere DENSITY` | Atmosphere thickness multiplier, 0 removes it |
+| `--relief STRENGTH` | Terrain shading, 0 is flat |
+| `--hue DEG` | Rotates the surface colors, try 120 or 180 for alien worlds |
+| `--cities`, `--no-cities` | City lights on the night side |
+| `--moons COUNT`, `--hide-moons` | Number of moons, or leave them out of the picture |
 
-```python
-def generate_name():
-    prefixes = ["Xen", "Astra", "Nova", "Cryo", "Vul", "Zar", "Terra", "Oph", "Ere", "Quar"]
-    suffixes = ["ion", "is", "ar", "os", "ea", "or", "a", "um", "ax", "ex"]
-    return random.choice(prefixes) + random.choice(suffixes) + "-" + str(random.randint(1, 999))
-```
+Options for the output:
 
-### 3. Create Procedural Texture
+| Option | What it does |
+| --- | --- |
+| `--size PX` | Image width and height (default 512) |
+| `-b, --background` | `transparent` (default), `black`, `stars` or `nebula` |
+| `-n, --count N` | Number of planets; with `--seed` they use consecutive seeds |
+| `--sheet` | Also save `sheet.png` showing every planet of the run |
+| `--spin [FRAMES]` | Also save an animation of one full turn (36 frames by default) |
+| `--spin-format` | `gif` (default) or `webp`, which keeps transparency |
+| `--fps N` | Animation speed (default 20) |
+| `-o, --out DIR` | Output folder (default `export`) |
+| `--open` | Open the result in your image viewer |
+| `-q, --quiet` | Only print the saved file paths |
 
-Uses Perlin noise to generate natural-looking planetary surfaces:
+Anything you don't set is rolled from the seed. Changing one option keeps everything else the same, except that picking a different type re-rolls the temperature, clouds and physical stats to fit it.
 
-- **Scale**: Controls the zoom level of noise patterns
-- **Octaves**: Number of noise layers for detail
-- **Persistence**: How much each octave contributes
-- **Lacunarity**: Frequency multiplier between octaves
+## Planet types
 
-### 4. Render the Planet
+| Type | Temperature (°C) | Look |
+| --- | --- | --- |
+| barren | 100 to 400 | Dusty rock covered in craters, no air |
+| crystal | -50 to 100 | Glossy cyan crystal plains |
+| desert | 40 to 60 | Sand and rock, a few craters, thin dust clouds |
+| forest | 0 to 30 | Green continents and teal seas |
+| gas_giant | -100 to 400 | Belts, zones and oval storms in six color schemes |
+| ice | -200 to 0 | Frozen, cratered, slightly glossy |
+| ice_giant | -220 to -150 | Soft cyan and blue bands |
+| lava | 1000 to 2000 | Crust broken by glowing lava channels |
+| ocean | 0 to 100 | Continents, mountains, seas and ice caps |
+| toxic | 100 to 600 | Green crust with glowing acid seas |
+| tundra | -60 to -5 | Cold brown lands with large ice caps |
+| volcanic | 800 to 1500 | Dark crust, lava cracks and ash clouds |
 
-The rendering process:
-1. Select a random planet type
-2. Generate procedural texture
-3. Apply circular masking
-4. Add lighting effects
-5. Optionally add rings (20% chance)
-6. Generate metadata
+## Metadata
 
-### 5. Save Output
-
-Saves both image and metadata to the `export/` directory:
-- `{PlanetName}.png` - Planet image
-- `{PlanetName}.json` - Planet metadata
-
----
-
-## 🧮 Example Output
-
-### Metadata (JSON)
+Each image gets a JSON file next to it:
 
 ```json
 {
-    "name": "Astraea-742",
-    "type": "lava",
-    "temperature": 1573,
-    "radius": 205,
-    "rings": true,
-    "moons": 2,
-    "atmosphere": "thin",
-    "seed": 2375
+    "seed": 3,
+    "name": "Cosel Sigma-486",
+    "type": "ocean",
+    "temperature": 80,
+    "rings": false,
+    "moons": 4,
+    "light_azimuth": 140.6,
+    "light_elevation": 26.7,
+    "tilt": -13.3,
+    "clouds": 0.39,
+    "radius_km": 8010,
+    "density": 4.47,
+    "day_length_hours": 46.5,
+    "mass_earths": 1.611,
+    "gravity_g": 1.02,
+    "description": "An ocean world 16,020 km across with a thick atmosphere and 4 moons."
 }
 ```
 
-### Planet Types
+(Shortened; the real file lists every setting.) Pass it to `--from` to get the same planet back.
 
-Each planet type has unique characteristics:
+## Using it from Python
 
-- **Lava**: Red-orange, extremely hot (1000-2000°C)
-- **Barren**: Brown-tan, moderate temperature (100-400°C)
-- **Ice**: Light blue, freezing cold (-200-0°C)
-- **Ocean**: Deep blue, temperate (0-100°C)
-- **Forest**: Green, habitable range (0-30°C)
-- **Desert**: Sandy yellow, warm (40-60°C)
-- **Gas Giant**: Orange-yellow, variable (-100-400°C)
-- **Toxic**: Bright green, hot (100-600°C)
-- **Crystal**: Cyan, cool (-50-100°C)
-- **Volcanic**: Bright red, very hot (800-1500°C)
+```python
+from planetgen import PlanetSpec, render_planet
 
----
+spec = PlanetSpec.random(seed=4242, type="ocean", clouds=0.2)
+image = render_planet(spec, size=1024, background="stars")  # a PIL image
+image.save("my_planet.png")
+print(spec.description)
+```
 
-## 🎨 Customization
+`render_planet_image(size, seed, planet_type, rings, background, **options)` does both steps and returns `(image, metadata)`, and `planetgen.render.render_spin(spec, size, frames)` returns the frames of a full turn.
 
-You can modify the planet generator by:
+## Project layout
 
-1. **Adding new planet types**: Add entries to the `PLANET_TYPES` dictionary
-2. **Adjusting texture parameters**: Modify `scale`, `octaves`, `persistence` in `generate_texture()`
-3. **Changing image size**: Pass a different `size` parameter to `render_planet_image()`
-4. **Customizing names**: Add more prefixes/suffixes to `generate_name()`
+```
+planet_generator.py    command line entry point
+planetgen/
+    cli.py             command line options
+    gui.py             designer window
+    spec.py            PlanetSpec: everything rolled from a seed
+    types.py           planet types, color ramps, gas giant palettes
+    render.py          puts the layers together
+    geometry.py        sphere and orientation math
+    noise.py           Perlin and ridged noise in NumPy
+    surface.py         terrain, craters, ice caps, gas giant bands, clouds
+    lighting.py        sunlight, relief, atmosphere
+    rings.py           ring structure, lighting and shadows
+    moons.py           moon placement and rendering
+    background.py      stars and nebulae
+    output.py          saving images, animations and overview sheets
+tests/                 pytest suite
+```
 
----
+Run the tests with:
 
-## 📝 License
-
-This project is open source and available for educational purposes.
-
----
-
-## 🤝 Contributing
-
-Feel free to fork, modify, and submit pull requests to improve the planet generator!
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
