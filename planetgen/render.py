@@ -13,10 +13,11 @@ from .surface import generate_clouds, generate_surface
 from .types import PLANET_TYPES
 
 
-def render_planet_image(size=512, seed=None, planet_type=None):
+def render_planet_image(size=512, seed=None, planet_type=None, rings=None):
     """Render a complete planet image with metadata.
 
     The same seed (and type, if given) always produces the same planet.
+    planet_type and rings override the random choice when not None.
     """
     if seed is None:
         seed = random.randint(0, 999_999)
@@ -29,7 +30,8 @@ def render_planet_image(size=512, seed=None, planet_type=None):
     name = generate_name(rng)
     temp_range = traits["temperature"]
     temperature = rng.randint(temp_range[0], temp_range[1])
-    has_rings = rng.random() < 0.2
+    ring_roll = rng.random() < 0.2
+    has_rings = ring_roll if rings is None else rings
     has_moons = rng.randint(0, 5)
 
     if has_rings:

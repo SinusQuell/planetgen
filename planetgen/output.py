@@ -7,7 +7,7 @@ import subprocess
 
 
 def save_planet(planet_img, metadata, output_dir="export"):
-    """Save planet image and metadata to files."""
+    """Save the planet image and its metadata. Returns (image_path, json_path)."""
     os.makedirs(output_dir, exist_ok=True)
 
     name = metadata["name"]
@@ -19,17 +19,19 @@ def save_planet(planet_img, metadata, output_dir="export"):
     with open(json_path, "w") as f:
         json.dump(metadata, f, indent=4)
 
-    print(f"Saved planet to {image_path}")
-    print(f"Saved metadata to {json_path}")
+    return image_path, json_path
 
+
+def open_file(path):
+    """Open a file with the system's default viewer. Returns False if that failed."""
     try:
         system = platform.system()
         if system == "Darwin":
-            subprocess.run(["open", image_path], check=False)
+            subprocess.run(["open", path], check=False)
         elif system == "Windows":
-            os.startfile(image_path)
-        elif system == "Linux":
-            subprocess.run(["xdg-open", image_path], check=False)
-        print(f"Opening {image_path}...")
-    except Exception as e:
-        print(f"Could not auto-open image: {e}")
+            os.startfile(path)
+        else:
+            subprocess.run(["xdg-open", path], check=False)
+    except Exception:
+        return False
+    return True
