@@ -77,6 +77,8 @@ def build_parser():
                         help="open the image in your default viewer when done")
     parser.add_argument("-q", "--quiet", action="store_true",
                         help="only print the saved file paths")
+    parser.add_argument("--gui", action="store_true",
+                        help="open the planet designer window instead")
     parser.add_argument("--list-types", action="store_true",
                         help="list the available planet types and exit")
     return parser
@@ -121,6 +123,10 @@ def main(argv=None):
 
     if args.list_types:
         list_types()
+        return 0
+    if args.gui:
+        from .gui import main as gui_main
+        gui_main()
         return 0
     if args.count < 1:
         print("--count must be at least 1", file=sys.stderr)
