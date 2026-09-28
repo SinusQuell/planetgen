@@ -21,6 +21,9 @@ def build_parser():
                         help="planet type (default: random). See --list-types.")
     parser.add_argument("-s", "--seed", type=int,
                         help="seed for a reproducible planet (default: random)")
+    parser.add_argument("-f", "--from", dest="from_file", metavar="JSON",
+                        help="re-render a planet from its saved metadata file; other "
+                             "options change it from there")
     parser.add_argument("-n", "--count", type=int, default=1,
                         help="number of planets to generate (default: 1)")
     parser.add_argument("--size", type=int, default=512,
@@ -127,11 +130,27 @@ def main(argv=None):
         print("--size must be between 32 and 8192", file=sys.stderr)
         return 2
 
+    saved = None
+    if args.from_file:
+        try:
+            with open(args.from_file) as f:
+                saved = json.load(f)
+        except (OSError, ValueError) as error:
+            print(f"Could not read {args.from_file}: {error}", file=sys.stderr)
+            return 2
+        if args.count != 1 or args.seed is not None:
+            print("--from renders one saved planet; drop --count and --seed", file=sys.stderr)
+            return 2
+
     for i in range(args.count):
         # With a fixed seed and a count above 1, step the seed so each planet
         # differs but the whole batch is still reproducible.
         seed = None if args.seed is None else args.seed + i
-        spec = PlanetSpec.random(seed, type=args.type, rings=args.rings, **spec_options(args))
+        overrides = dict(type=args.type, rings=args.rings, **spec_options(args))
+        if saved is not None:
+            spec = PlanetSpec.from_dict(saved, **overrides)
+        else:
+            spec = PlanetSpec.random(seed, **overrides)
         image = render_planet(spec, args.size, args.background)
         metadata = spec.to_dict()
         image_path, json_path = save_planet(image, metadata, args.out)

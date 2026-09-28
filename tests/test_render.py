@@ -78,3 +78,20 @@ def test_spin_turns_the_planet():
 def test_cli_spin_writes_animation(tmp_path):
     assert main(["--seed", "4", "--size", "48", "--spin", "3", "--out", str(tmp_path), "-q"]) == 0
     assert len(list(tmp_path.glob("*-spin.gif"))) == 1
+
+
+def test_saved_metadata_rebuilds_the_same_planet():
+    spec = PlanetSpec.random(77, tilt=12.5, hue=40)
+    again = PlanetSpec.from_dict(spec.to_dict())
+    assert again == spec
+
+
+def test_cli_from_file_with_override(tmp_path):
+    assert main(["--seed", "8", "--size", "48", "--out", str(tmp_path), "-q"]) == 0
+    saved = next(tmp_path.glob("*.json"))
+    out = tmp_path / "again"
+    assert main(["--from", str(saved), "--size", "48", "--tilt", "33", "-q",
+                 "--out", str(out)]) == 0
+    data = json.loads(next(out.glob("*.json")).read_text())
+    assert data["tilt"] == 33
+    assert data["seed"] == 8

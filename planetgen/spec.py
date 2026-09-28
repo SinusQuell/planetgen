@@ -8,6 +8,11 @@ from .names import generate_name
 from .types import PLANET_TYPES
 
 
+# Fields whose rolled values depend on the planet type
+TYPE_DEPENDENT_FIELDS = ("temperature", "clouds", "cities", "radius_km", "density",
+                         "day_length_hours")
+
+
 @dataclass
 class PlanetSpec:
     seed: int
@@ -139,6 +144,23 @@ class PlanetSpec:
             ", ".join(features[:-1]) + " and " + features[-1])
         sentence = f"{article} {kind} world {self.radius_km * 2:,} km across with {listed}"
         return sentence + "."
+
+    @classmethod
+    def from_dict(cls, data, **overrides):
+        """Rebuild a spec from saved metadata. Keys that are not spec fields
+        (derived stats, the description) are ignored; fields missing from
+        older files are rolled from the seed as usual."""
+        known = {f.name for f in fields(cls)}
+        saved = {k: v for k, v in data.items() if k in known}
+        new_type = overrides.get("type")
+        if new_type and new_type != saved.get("type"):
+            # These were rolled for the old type; roll them again.
+            for key in TYPE_DEPENDENT_FIELDS:
+                saved.pop(key, None)
+        saved.update({k: v for k, v in overrides.items() if v is not None})
+        seed = saved.pop("seed")
+        # Roll the full spec first so anything the file lacks gets a value.
+        return cls.random(seed, **saved)
 
     def to_dict(self):
         data = asdict(self)
