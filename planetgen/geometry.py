@@ -1,9 +1,25 @@
 """Sphere geometry shared by the render passes."""
 
+import math
+
 import numpy as np
 
 
-def build_sphere_geometry(size, radius):
+def orientation_matrix(tilt, inclination, rotation):
+    """Rotation from the planet's body frame into view space, both y-up.
+
+    In the body frame the north pole is +y. rotation spins the planet about
+    its own axis, inclination tips the north pole toward the viewer and
+    tilt turns the axis counterclockwise in the image. All in degrees.
+    """
+    t, i, r = (math.radians(a) for a in (tilt, inclination, rotation))
+    spin = np.array([[math.cos(r), 0, math.sin(r)], [0, 1, 0], [-math.sin(r), 0, math.cos(r)]])
+    tip = np.array([[1, 0, 0], [0, math.cos(i), -math.sin(i)], [0, math.sin(i), math.cos(i)]])
+    roll = np.array([[math.cos(t), -math.sin(t), 0], [math.sin(t), math.cos(t), 0], [0, 0, 1]])
+    return roll @ tip @ spin
+
+
+def build_sphere_geometry(size, radius, orientation=None):
     """Precompute sphere geometry for vectorized operations.
 
     Returns dict with:
@@ -13,6 +29,10 @@ def build_sphere_geometry(size, radius):
                  (1 inside, fading to 0 across the edge for anti-aliasing)
       nx, ny, nz - 1D arrays of surface normals for masked pixels
                    (x right, y down, z toward the viewer)
+      px, py, pz - 1D arrays, the same points in the planet's own frame
+                   (py is latitude, +1 at the north pole); surface
+                   features are sampled here so they turn with the planet
+      pole       - the north pole direction in image space
       dx, dy     - 2D arrays of displacement from center (in pixels)
       dist_sq    - 2D array of squared distance from center (normalized by radius)
     """
@@ -38,12 +58,24 @@ def build_sphere_geometry(size, radius):
     ny = ndy[mask] / rim
     nz = np.sqrt(np.clip(1.0 - (nx * nx + ny * ny), 0.0, 1.0))
 
+    if orientation is None:
+        orientation = np.eye(3)
+    # View space is y-down, the body frame is y-up: flip y on the way in
+    # and out. Body = orientation^T @ view.
+    view_up = np.stack([nx, -ny, nz])
+    px, py, pz = orientation.T @ view_up
+    pole = (orientation[0, 1], -orientation[1, 1], orientation[2, 1])
+
     return {
         "mask": mask,
         "coverage": coverage,
         "nx": nx,
         "ny": ny,
         "nz": nz,
+        "px": px,
+        "py": py,
+        "pz": pz,
+        "pole": pole,
         "dx": dx,
         "dy": dy,
         "ndx": ndx,

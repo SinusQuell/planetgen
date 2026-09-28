@@ -3,7 +3,7 @@
 import numpy as np
 from PIL import Image
 
-from .geometry import build_sphere_geometry
+from .geometry import build_sphere_geometry, orientation_matrix
 from .lighting import apply_atmosphere, apply_lighting, light_direction, render_outer_glow
 from .rings import render_rings
 from .spec import PlanetSpec
@@ -20,7 +20,8 @@ def render_planet(spec, size=512):
     radius = max(4, int(round(spec.scale * size)))
 
     # 1. Build sphere geometry
-    geo = build_sphere_geometry(size, radius)
+    orientation = orientation_matrix(spec.tilt, spec.inclination, spec.rotation)
+    geo = build_sphere_geometry(size, radius, orientation)
 
     # 2. Generate surface colors
     r, g, b = generate_surface(geo, planet_type, seed)
@@ -50,7 +51,8 @@ def render_planet(spec, size=512):
 
     # 7. Rings
     if has_rings:
-        back_rings, front_rings = render_rings(size, radius, seed)
+        back_rings, front_rings = render_rings(
+            size, radius, seed, geo["pole"], spec.ring_inner, spec.ring_outer)
         final = Image.new("RGBA", (size, size), (0, 0, 0, 0))
         if back_rings is not None:
             final = Image.alpha_composite(final, Image.fromarray(back_rings, "RGBA"))

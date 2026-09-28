@@ -21,6 +21,14 @@ class PlanetSpec:
     # Direction of the sun, see lighting.light_direction.
     light_azimuth: float
     light_elevation: float
+    # Orientation in degrees: tilt turns the axis in the image, inclination
+    # tips the north pole toward the viewer, rotation spins the planet.
+    tilt: float
+    inclination: float
+    rotation: float
+    # Ring edges in planet radii.
+    ring_inner: float
+    ring_outer: float
 
     @property
     def atmosphere(self):
@@ -52,11 +60,20 @@ class PlanetSpec:
         # New rolls go at the end so older seeds keep their earlier values.
         values["light_azimuth"] = round(rng.uniform(15, 165), 1)
         values["light_elevation"] = round(rng.uniform(15, 60), 1)
+        values["tilt"] = round(rng.uniform(-25, 25), 1)
+        values["inclination"] = round(rng.choice([-1, 1]) * rng.uniform(8, 30), 1)
+        values["rotation"] = round(rng.uniform(0, 360), 1)
+        values["ring_inner"] = round(rng.uniform(1.3, 1.5), 2)
+        values["ring_outer"] = round(rng.uniform(1.9, 2.4), 2)
 
         unknown = set(overrides) - {f.name for f in fields(cls)}
         if unknown:
             raise TypeError(f"unknown planet option(s): {', '.join(sorted(unknown))}")
         values.update({k: v for k, v in overrides.items() if v is not None})
+        if values["rings"] and overrides.get("scale") is None:
+            # Keep the whole ring system inside the image.
+            values["scale"] = min(values["scale"], 0.47 / values["ring_outer"])
+        values["scale"] = round(values["scale"], 3)
         return cls(**values)
 
     def to_dict(self):
