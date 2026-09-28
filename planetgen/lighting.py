@@ -102,48 +102,72 @@ def apply_lighting(surface, geo, light, shadow=None, relief=1.0):
     return np.clip(rgb, 0, 255), diffuse
 
 
-def apply_atmosphere(rgb, geo, traits):
-    """Apply Fresnel-based atmospheric rim glow to (N, 3) colors."""
-    strength = traits["atmo_strength"]
+def atmosphere_color(traits, surface):
+    """Color of the scattered light. Gas giants are mostly atmosphere, so
+    theirs leans toward the planet's own colors."""
+    base = np.array(traits["atmo_color"], dtype=np.float64)
+    if traits.get("banded"):
+        own = surface.color.mean(axis=0)
+        own = own / max(own.max(), 1.0) * 235.0
+        return base * 0.25 + own * 0.75
+    return base
+
+
+def apply_atmosphere(rgb, geo, light, color, strength):
+    """Add sunlit haze toward the limb of (N, 3) colors, with a warm sunset
+    band along the day/night line when the air is thick."""
     if strength <= 0:
         return rgb
 
-    nz = geo["nz"]
-    atmo_color = traits["atmo_color"]
+    nx, ny, nz = geo["nx"], geo["ny"], geo["nz"]
+    lx, ly, lz = light
+    n_dot_l = nx * lx + ny * ly + nz * lz
+    daylight = np.clip((n_dot_l + 0.3) / 1.3, 0.0, 1.0)
 
-    # Fresnel: bright at the limb, transparent at center
-    fresnel = np.power(np.clip(1.0 - nz, 0, 1), 3.0) * strength
+    rim = np.power(np.clip(1.0 - nz, 0.0, 1.0), 2.2)
+    haze = (0.12 + rim) * strength * daylight
+    haze = np.clip(haze, 0.0, 0.9)[:, None]
+    # Screen blend: haze brightens dark ground a lot and bright ground a little.
+    out = rgb + (np.asarray(color) - rgb * np.asarray(color) / 255.0) * haze
 
-    fresnel = fresnel[:, None]
-    return np.clip(rgb * (1.0 - fresnel) + np.array(atmo_color) * fresnel, 0, 255)
+    sunset = np.exp(-(n_dot_l / 0.12) ** 2) * np.clip(strength - 0.3, 0.0, 1.0) * 0.6
+    sunset_color = np.array([255.0, 120.0, 60.0])
+    out = out + sunset_color * (sunset * (0.3 + 0.7 * rim))[:, None]
+    return np.clip(out, 0, 255)
 
 
-def render_outer_glow(size, radius, traits):
-    """Render atmospheric glow outside the planet sphere. Returns RGBA array."""
-    strength = traits["atmo_strength"]
+def render_outer_glow(size, radius, light, color, strength):
+    """Halo of lit air just outside the planet's edge, as float RGBA in 0..1.
+
+    It is brightest on the sunlit side. With the sun behind the planet,
+    light scattering forward through the air lights up the whole rim.
+    """
     if strength <= 0:
         return None
 
     cx = cy = size / 2.0
     yy, xx = np.mgrid[0:size, 0:size]
-    dx = xx - cx
-    dy = yy - cy
+    dx = xx + 0.5 - cx
+    dy = yy + 0.5 - cy
     dist = np.sqrt(dx * dx + dy * dy)
 
-    glow_width = radius * 0.12
-    glow_mask = (dist > radius) & (dist < radius + glow_width * 3)
+    # Halo thickness, in planet radii
+    thickness = 0.04 + 0.06 * min(strength, 1.5)
+    height = (dist - radius) / radius
+    region = (height > -0.02) & (height < thickness * 5)
+    glow = np.zeros((size, size, 4))
+    if not np.any(region):
+        return None
 
-    glow = np.zeros((size, size, 4), dtype=np.uint8)
-    if not np.any(glow_mask):
-        return glow
+    h = np.maximum(height[region], 0.0)
+    falloff = np.exp(-h / thickness)
 
-    falloff = np.exp(-((dist[glow_mask] - radius) / glow_width) ** 2)
-    alpha = (falloff * strength * 180).astype(np.uint8)
+    lx, ly, lz = light
+    limb_dot_l = (dx[region] * lx + dy[region] * ly) / np.maximum(dist[region], 1e-6)
+    lit = np.clip((limb_dot_l + 0.3) / 1.3, 0.0, 1.0) ** 1.5
+    backlit = max(-lz, 0.0) ** 2 * 0.9
 
-    ac = traits["atmo_color"]
-    glow[glow_mask, 0] = ac[0]
-    glow[glow_mask, 1] = ac[1]
-    glow[glow_mask, 2] = ac[2]
-    glow[glow_mask, 3] = alpha
-
+    intensity = falloff * min(strength, 1.5) * (lit + backlit)
+    glow[region, :3] = np.asarray(color) / 255.0
+    glow[region, 3] = np.clip(intensity * 2.2, 0.0, 1.0)
     return glow

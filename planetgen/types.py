@@ -6,6 +6,7 @@
 #   glow           color the liquid gives off, visible on the night side
 #   ice_caps       polar ice that grows as the planet gets colder
 #   craters        how many impact craters to scatter over the surface
+#   banded         a gas giant: bands and storms instead of terrain
 #   terrain        height field style, see surface.terrain_height (default rolling)
 PLANET_TYPES = {
     "lava": {
@@ -72,6 +73,7 @@ PLANET_TYPES = {
         "atmo_color": (200, 160, 100),
         "atmo_strength": 0.5,
         "land_specular": 0.06,
+        "banded": True,
     },
     "toxic": {
         "base_color": (100, 255, 100),

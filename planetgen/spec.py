@@ -31,6 +31,8 @@ class PlanetSpec:
     ring_outer: float
     # How strongly terrain height shades the surface; 0 renders it flat.
     relief: float = 1.0
+    # Multiplies how thick the planet type's atmosphere looks; 0 removes it.
+    atmosphere_density: float = 1.0
 
     @property
     def atmosphere(self):

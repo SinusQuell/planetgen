@@ -4,7 +4,9 @@ import numpy as np
 from PIL import Image
 
 from .geometry import build_sphere_geometry, orientation_matrix
-from .lighting import apply_atmosphere, apply_lighting, light_direction, render_outer_glow
+from .lighting import (
+    apply_atmosphere, apply_lighting, atmosphere_color, light_direction, render_outer_glow,
+)
 from .rings import RingSystem
 from .spec import PlanetSpec
 from .surface import generate_clouds, generate_surface
@@ -38,7 +40,9 @@ def render_planet(spec, size=512):
         rgb = rgb * (1.0 - cloud_alpha) + 255.0 * cloud_alpha
 
     # 5. Apply atmosphere
-    rgb = apply_atmosphere(rgb, geo, traits)
+    air_color = atmosphere_color(traits, surface)
+    air = traits["atmo_strength"] * spec.atmosphere_density
+    rgb = apply_atmosphere(rgb, geo, light, air_color, air)
 
     # 6. Assemble planet RGBA
     planet_rgba = np.zeros((size, size, 4), dtype=np.uint8)
@@ -59,13 +63,9 @@ def render_planet(spec, size=512):
         final = Image.fromarray(planet_rgba, "RGBA")
 
     # 8. Outer atmospheric glow
-    glow = render_outer_glow(size, radius, traits)
+    glow = render_outer_glow(size, radius, light, air_color, air)
     if glow is not None:
-        glow_img = Image.fromarray(glow, "RGBA")
-        canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-        canvas = Image.alpha_composite(canvas, glow_img)
-        canvas = Image.alpha_composite(canvas, final)
-        final = canvas
+        final = Image.alpha_composite(_to_image(glow), final)
 
     return final
 
