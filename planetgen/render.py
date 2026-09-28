@@ -1,5 +1,7 @@
 """Main rendering pipeline."""
 
+from dataclasses import replace
+
 import numpy as np
 from PIL import Image
 
@@ -72,7 +74,9 @@ def render_planet(spec, size=512, background="transparent"):
     moons = []
     if spec.show_moons and spec.moons:
         min_orbit = spec.ring_outer + 0.4 if has_rings else 1.8
-        moons = place_moons(spec.moons, seed, size, radius, orientation, min_orbit)
+        # Leave the spin out so the moons stay put while the planet turns.
+        orbit_frame = orientation_matrix(spec.tilt, spec.inclination, 0.0)
+        moons = place_moons(spec.moons, seed, size, radius, orbit_frame, min_orbit)
     final = composite_moons(final, [m for m in moons if m["depth"] < 0], light)
 
     back_rings = front_rings = None
@@ -106,6 +110,25 @@ def composite_clouds(rgb, geo, light, density, color, shadow):
 def _to_image(rgba):
     """Float RGBA in 0..1 to a PIL image."""
     return Image.fromarray(np.round(np.clip(rgba, 0, 1) * 255).astype(np.uint8), "RGBA")
+
+
+def render_spin(spec, size=512, frames=36, background="transparent", progress=None):
+    """Render one full turn of the planet around its axis.
+
+    Returns a list of frames. progress, if given, is called with
+    (frames_done, frames_total) after each frame.
+    """
+    backdrop = render_background(size, spec.seed, background)
+    images = []
+    for i in range(frames):
+        turned = replace(spec, rotation=(spec.rotation + 360.0 * i / frames) % 360.0)
+        frame = render_planet(turned, size)
+        if backdrop is not None:
+            frame = Image.alpha_composite(backdrop, frame)
+        images.append(frame)
+        if progress:
+            progress(i + 1, frames)
+    return images
 
 
 def render_planet_image(size=512, seed=None, planet_type=None, rings=None,

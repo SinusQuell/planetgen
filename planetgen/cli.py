@@ -2,11 +2,13 @@
 
 import argparse
 import json
+import os
 import sys
 
 from .background import BACKGROUNDS
-from .output import open_file, save_planet
-from .render import render_planet_image
+from .output import open_file, save_animation, save_planet
+from .render import render_planet, render_spin
+from .spec import PlanetSpec
 from .types import PLANET_TYPES
 
 
@@ -57,6 +59,13 @@ def build_parser():
                         help="leave the moons out of the picture")
     parser.add_argument("-b", "--background", choices=BACKGROUNDS, default="transparent",
                         help="what goes behind the planet (default: transparent)")
+    parser.add_argument("--spin", type=int, nargs="?", const=36, metavar="FRAMES",
+                        help="also save an animation of one full turn "
+                             "(default 36 frames when given without a number)")
+    parser.add_argument("--spin-format", choices=["gif", "webp"], default="gif",
+                        help="animation format; webp keeps transparency (default: gif)")
+    parser.add_argument("--fps", type=int, default=20,
+                        help="animation frames per second (default: 20)")
     parser.add_argument("-o", "--out", default="export",
                         help="output folder (default: export)")
     parser.add_argument("--open", action="store_true",
@@ -86,6 +95,22 @@ def spec_options(args):
     return options
 
 
+def save_spin(spec, args):
+    background = args.background
+    if args.spin_format == "gif" and background == "transparent":
+        background = "black"
+
+    def progress(done, total):
+        if not args.quiet:
+            print(f"\r  rendering spin: {done}/{total} frames", end="", flush=True)
+
+    frames = render_spin(spec, args.size, args.spin, background, progress)
+    if not args.quiet:
+        print()
+    path = os.path.join(args.out, f"{spec.name}-spin.{args.spin_format}")
+    return save_animation(frames, path, args.fps)
+
+
 def main(argv=None):
     args = build_parser().parse_args(argv)
 
@@ -95,6 +120,9 @@ def main(argv=None):
     if args.count < 1:
         print("--count must be at least 1", file=sys.stderr)
         return 2
+    if args.spin is not None and args.spin < 2:
+        print("--spin needs at least 2 frames", file=sys.stderr)
+        return 2
     if not 32 <= args.size <= 8192:
         print("--size must be between 32 and 8192", file=sys.stderr)
         return 2
@@ -103,11 +131,11 @@ def main(argv=None):
         # With a fixed seed and a count above 1, step the seed so each planet
         # differs but the whole batch is still reproducible.
         seed = None if args.seed is None else args.seed + i
-        image, metadata = render_planet_image(
-            size=args.size, seed=seed, planet_type=args.type, rings=args.rings,
-            background=args.background, **spec_options(args),
-        )
+        spec = PlanetSpec.random(seed, type=args.type, rings=args.rings, **spec_options(args))
+        image = render_planet(spec, args.size, args.background)
+        metadata = spec.to_dict()
         image_path, json_path = save_planet(image, metadata, args.out)
+        spin_path = save_spin(spec, args) if args.spin else None
 
         if args.quiet:
             print(image_path)
@@ -115,6 +143,8 @@ def main(argv=None):
             print(f"{metadata['name']}  ({metadata['type']}, seed {metadata['seed']})")
             print(f"  image:    {image_path}")
             print(f"  metadata: {json_path}")
+            if spin_path:
+                print(f"  spin:     {spin_path}")
             if args.count == 1:
                 print(json.dumps(metadata, indent=4))
 

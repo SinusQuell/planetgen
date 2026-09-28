@@ -4,7 +4,9 @@ import numpy as np
 import pytest
 
 from planetgen import PLANET_TYPES, render_planet_image
+from planetgen import PlanetSpec
 from planetgen.cli import main
+from planetgen.render import render_spin
 
 
 def pixels(image):
@@ -64,3 +66,15 @@ def test_cli_writes_image_and_metadata(tmp_path):
     jsons = list(tmp_path.glob("*.json"))
     assert len(pngs) == 1 and len(jsons) == 1
     assert json.loads(jsons[0].read_text())["seed"] == 9
+
+
+def test_spin_turns_the_planet():
+    spec = PlanetSpec.random(5, type="ocean", rings=False, moons=0)
+    frames = render_spin(spec, size=64, frames=4)
+    assert len(frames) == 4
+    assert not np.array_equal(pixels(frames[0]), pixels(frames[1]))
+
+
+def test_cli_spin_writes_animation(tmp_path):
+    assert main(["--seed", "4", "--size", "48", "--spin", "3", "--out", str(tmp_path), "-q"]) == 0
+    assert len(list(tmp_path.glob("*-spin.gif"))) == 1
