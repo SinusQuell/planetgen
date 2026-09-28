@@ -7,6 +7,8 @@
 #   ice_caps       polar ice that grows as the planet gets colder
 #   craters        how many impact craters to scatter over the surface
 #   banded         a gas giant: bands and storms instead of terrain
+#   clouds         range the cloud coverage (0..1) is rolled from
+#   cloud_color    color of the cloud tops
 #   terrain        height field style, see surface.terrain_height (default rolling)
 PLANET_TYPES = {
     "lava": {
@@ -19,6 +21,7 @@ PLANET_TYPES = {
         "land_specular": 0.03,
         "terrain": "cracked",
         "glow": (255, 120, 30),
+        "clouds": (0.0, 0.15), "cloud_color": (84, 74, 68),
     },
     "barren": {
         "base_color": (180, 140, 100),
@@ -36,6 +39,7 @@ PLANET_TYPES = {
         "atmo_strength": 0.3,
         "land_specular": 0.25,
         "craters": 45,
+        "clouds": (0.1, 0.35), "cloud_color": (235, 242, 255),
     },
     "ocean": {
         "base_color": (0, 80, 200),
@@ -46,6 +50,7 @@ PLANET_TYPES = {
         "sea_level": -0.01,
         "terrain": "continents",
         "ice_caps": True,
+        "clouds": (0.35, 0.65), "cloud_color": (250, 250, 252),
     },
     "forest": {
         "base_color": (50, 150, 60),
@@ -56,6 +61,7 @@ PLANET_TYPES = {
         "sea_level": -0.05,
         "terrain": "continents",
         "ice_caps": True,
+        "clouds": (0.3, 0.6), "cloud_color": (250, 250, 250),
     },
     "desert": {
         "base_color": (230, 200, 100),
@@ -65,6 +71,7 @@ PLANET_TYPES = {
         "atmo_strength": 0.25,
         "ice_caps": True,
         "craters": 12,
+        "clouds": (0.0, 0.2), "cloud_color": (232, 214, 178),
     },
     "gas_giant": {
         "base_color": (255, 180, 100),
@@ -84,6 +91,7 @@ PLANET_TYPES = {
         "sea_level": -0.05,
         "terrain": "cracked",
         "glow": (60, 190, 45),
+        "clouds": (0.2, 0.5), "cloud_color": (196, 214, 120),
     },
     "crystal": {
         "base_color": (180, 255, 255),
@@ -104,6 +112,7 @@ PLANET_TYPES = {
         "land_specular": 0.03,
         "terrain": "cracked",
         "glow": (255, 90, 20),
+        "clouds": (0.15, 0.4), "cloud_color": (96, 86, 80),
     },
 }
 

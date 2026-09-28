@@ -28,16 +28,22 @@ def render_planet(spec, size=512):
     # 2. Generate the surface material
     surface = generate_surface(geo, planet_type, seed, spec.temperature)
 
-    # 3. Apply lighting
+    # 3. Clouds and the shadows they cast
     light = light_direction(spec.light_azimuth, spec.light_elevation)
     ring_system = RingSystem(seed, spec.ring_inner, spec.ring_outer) if has_rings else None
-    shadow = ring_system.shadow_on_planet(geo, geo["pole"], light) if ring_system else None
-    rgb, diffuse = apply_lighting(surface, geo, light, shadow, spec.relief)
+    ring_shadow = ring_system.shadow_on_planet(geo, geo["pole"], light) if ring_system else 1.0
+    clouds = None
+    shadow = ring_shadow
+    if spec.clouds > 0 and "cloud_color" in traits:
+        lx, ly, lz = light
+        light_body = orientation.T @ np.array([lx, -ly, lz])
+        clouds, cloud_shadow = generate_clouds(geo, seed, spec.clouds, light_body)
+        shadow = ring_shadow * (1.0 - cloud_shadow)
 
-    # 4. Add clouds (before atmosphere, after lighting)
-    if planet_type in ("ocean", "forest", "ice", "desert"):
-        cloud_alpha = generate_clouds(geo, seed, diffuse)[:, None]
-        rgb = rgb * (1.0 - cloud_alpha) + 255.0 * cloud_alpha
+    # 4. Light the ground, then lay the clouds over it
+    rgb, _ = apply_lighting(surface, geo, light, shadow, spec.relief)
+    if clouds is not None:
+        rgb = composite_clouds(rgb, geo, light, clouds, traits["cloud_color"], ring_shadow)
 
     # 5. Apply atmosphere
     air_color = atmosphere_color(traits, surface)
@@ -68,6 +74,17 @@ def render_planet(spec, size=512):
         final = Image.alpha_composite(_to_image(glow), final)
 
     return final
+
+
+def composite_clouds(rgb, geo, light, density, color, shadow):
+    """Lay sunlit clouds over the lit ground."""
+    nx, ny, nz = geo["nx"], geo["ny"], geo["nz"]
+    lx, ly, lz = light
+    sun = np.clip((nx * lx + ny * ly + nz * lz + 0.1) / 1.1, 0.0, 1.0) * shadow
+    brightness = 0.03 + sun * (0.45 + 0.55 * np.sqrt(nz))
+    cloud_rgb = np.asarray(color, dtype=np.float64) * brightness[:, None]
+    alpha = (density * 0.95)[:, None]
+    return rgb * (1.0 - alpha) + cloud_rgb * alpha
 
 
 def _to_image(rgba):

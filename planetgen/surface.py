@@ -282,26 +282,54 @@ def _generate_gas_giant_surface(geo, seed, perm):
 
 # ── Cloud layer ──────────────────────────────────────────────────────────────
 
-def generate_clouds(geo, seed, diffuse):
-    """Generate cloud layer. Returns cloud_alpha as a 1D array in [0, 1]."""
-    px, py, pz = geo["px"], geo["py"], geo["pz"]
-
+def _cloud_noise(px, py, pz, seed):
     rng = np.random.RandomState((seed + 8888) & 0x7FFFFFFF)
-    offx, offy, offz = rng.uniform(-500, 500, 3)
+    ox, oy, oz = rng.uniform(-500, 500, 3)
 
-    cloud_perm = _build_perm_table(seed + 500)
-
-    # Domain warp for clouds
+    # Winds stretch clouds along lines of latitude, and a warp curls them.
     warp_perm = _build_perm_table(seed + 2500)
-    cw = fbm_noise_3d(px * 3.0 + offx, py * 3.0 + offy, pz * 3.0 + offz,
-                       warp_perm, octaves=2) * 0.3
+    wx = fbm_noise_3d(px * 2.5 + ox, py * 2.5 + oy, pz * 2.5 + oz, warp_perm, octaves=3)
+    wy = fbm_noise_3d(px * 2.5 + oy, py * 2.5 + oz, pz * 2.5 + ox, warp_perm, octaves=3)
+    qx = px + wx * 0.35
+    qy = py + wy * 0.12
+    qz = pz + wx * 0.35
 
-    cloud_noise = fbm_noise_3d((px + cw) * 5.0 + offx, (py + cw) * 5.0 + offy, (pz + cw) * 5.0 + offz,
-                                cloud_perm, octaves=5, persistence=0.55, lacunarity=2.2)
+    noise = fbm_noise_3d(qx * 3.5 + ox, qy * 7.0 + oy, qz * 3.5 + oz,
+                         _build_perm_table(seed + 500), octaves=7, persistence=0.58)
+    wisps = fbm_noise_3d(qx * 16.0 + oz, qy * 34.0 + ox, qz * 16.0 + oy,
+                         _build_perm_table(seed + 510), octaves=3)
+    return noise + wisps * 0.1
 
-    cloud_alpha = smoothstep(0.1, 0.5, cloud_noise)
 
-    # Clouds are lit by the same light
-    cloud_alpha *= np.clip(diffuse * 1.5, 0.2, 1.0)
+# Fixed sample directions for finding the noise level that gives a coverage.
+_CLOUD_PROBE = np.random.RandomState(1).normal(size=(3, 3000))
+_CLOUD_PROBE /= np.linalg.norm(_CLOUD_PROBE, axis=0)
 
-    return cloud_alpha
+
+def cloud_density(px, py, pz, seed, coverage):
+    """Cloud density 0..1 at points on the unit sphere (body frame).
+
+    coverage is roughly the fraction of the sky that ends up cloudy.
+    """
+    coverage = float(np.clip(coverage, 0.0, 1.0))
+    probe = _cloud_noise(*_CLOUD_PROBE, seed)
+    threshold = np.quantile(probe, 1.0 - coverage)
+    noise = _cloud_noise(px, py, pz, seed)
+    # Soft on the thin side so cloud edges fray instead of cutting off.
+    return smoothstep(threshold - 0.1, threshold + 0.18, noise)
+
+
+def generate_clouds(geo, seed, coverage, light_body):
+    """Cloud density for every planet pixel, plus the shadow the clouds
+    throw on the ground (fraction of sunlight blocked, 0..1)."""
+    px, py, pz = geo["px"], geo["py"], geo["pz"]
+    density = cloud_density(px, py, pz, seed, coverage)
+
+    # Look up the cloud a short way toward the sun: that's what shades
+    # this spot. The offset is the cloud deck's height over the ground.
+    lx, ly, lz = light_body
+    lift = 0.025
+    sx, sy, sz = px + lx * lift, py + ly * lift, pz + lz * lift
+    norm = np.sqrt(sx * sx + sy * sy + sz * sz)
+    shadow = cloud_density(sx / norm, sy / norm, sz / norm, seed, coverage)
+    return density, shadow * 0.6
