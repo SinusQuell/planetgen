@@ -49,7 +49,7 @@ PLANET_TYPES = {
         "sea_level": -0.01,
         "terrain": "continents",
         "ice_caps": 0,
-        "clouds": (0.35, 0.65), "cloud_color": (250, 250, 252),
+        "clouds": (0.2, 0.5), "cloud_color": (250, 250, 252),
         "cities": 0.3,
     },
     "forest": {
@@ -60,7 +60,7 @@ PLANET_TYPES = {
         "sea_level": -0.05,
         "terrain": "continents",
         "ice_caps": 0,
-        "clouds": (0.3, 0.6), "cloud_color": (250, 250, 250),
+        "clouds": (0.2, 0.45), "cloud_color": (250, 250, 250),
         "cities": 0.3,
     },
     "desert": {
