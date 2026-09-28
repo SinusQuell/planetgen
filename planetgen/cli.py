@@ -31,6 +31,12 @@ def build_parser():
                         help="sun direction in degrees: azimuth counterclockwise from the "
                              "right edge, elevation toward the viewer (90 = fully lit, "
                              "0 = half lit, negative = crescent)")
+    parser.add_argument("--tilt", type=float,
+                        help="axial tilt in degrees, counterclockwise in the image")
+    parser.add_argument("--inclination", type=float,
+                        help="degrees the north pole leans toward you (0 = rings edge-on)")
+    parser.add_argument("--rotation", type=float,
+                        help="spin around the axis in degrees, shows a different side")
     parser.add_argument("-o", "--out", default="export",
                         help="output folder (default: export)")
     parser.add_argument("--open", action="store_true",
@@ -48,11 +54,12 @@ def list_types():
         print(f"  {name:<10} {low:>5} to {high:>5} C, atmosphere: {traits['atmosphere']}")
 
 
-def light_options(args):
-    if args.light is None:
-        return {}
-    azimuth, elevation = args.light
-    return {"light_azimuth": azimuth, "light_elevation": elevation}
+def spec_options(args):
+    """PlanetSpec overrides from the command line."""
+    options = {"tilt": args.tilt, "inclination": args.inclination, "rotation": args.rotation}
+    if args.light is not None:
+        options["light_azimuth"], options["light_elevation"] = args.light
+    return options
 
 
 def main(argv=None):
@@ -74,7 +81,7 @@ def main(argv=None):
         seed = None if args.seed is None else args.seed + i
         image, metadata = render_planet_image(
             size=args.size, seed=seed, planet_type=args.type, rings=args.rings,
-            **light_options(args),
+            **spec_options(args),
         )
         image_path, json_path = save_planet(image, metadata, args.out)
 
