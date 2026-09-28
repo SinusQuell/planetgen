@@ -20,8 +20,11 @@ class Surface:
     emission: np.ndarray = None  # (N, 3) light given off, 0..255, or None
 
 
-def generate_surface(geo, planet_type, seed):
-    """Generate the surface material for all masked pixels."""
+def generate_surface(geo, planet_type, seed, temperature=None):
+    """Generate the surface material for all masked pixels.
+
+    temperature (°C) sizes the polar ice caps on types that have them.
+    """
     px, py, pz = geo["px"], geo["py"], geo["pz"]
     perm = _build_perm_table(seed)
     traits = PLANET_TYPES[planet_type]
@@ -62,6 +65,13 @@ def generate_surface(geo, planet_type, seed):
         height = np.maximum(height, sea_level)
     specular = np.where(liquid, 0.8, land_specular)
 
+    if traits.get("ice_caps") and temperature is not None:
+        ice = polar_ice(px, py, pz, seed, offset, temperature, height)
+        color = color * (1.0 - ice[:, None]) + np.array([236.0, 242.0, 250.0]) * ice[:, None]
+        frozen = ice > 0.5
+        liquid = liquid & ~frozen
+        specular = np.where(frozen, 0.3, specular)
+
     emission = None
     glow = traits.get("glow")
     if glow is not None and sea_level is not None:
@@ -71,6 +81,16 @@ def generate_surface(geo, planet_type, seed):
         emission = np.array(glow, dtype=np.float64) * heat[:, None]
 
     return Surface(color, height, specular, liquid, emission)
+
+
+def polar_ice(px, py, pz, seed, offset, temperature, height):
+    """Ice cover 0..1 around the poles. At 0 °C the caps reach down to about
+    45° latitude, by 50 °C they are gone. High ground freezes a little
+    further from the pole."""
+    edge = np.clip(0.72 + temperature * 0.006, 0.55, 1.1)
+    ragged = _noise("fbm", px, py, pz, 4.0, offset + 300, seed + 400, octaves=5) * 0.12
+    latitude = np.abs(py) + ragged + np.maximum(height, 0.0) * 0.15
+    return smoothstep(edge - 0.015, edge + 0.015, latitude)
 
 
 def _noise(kind, px, py, pz, scale, offset, seed, **kwargs):

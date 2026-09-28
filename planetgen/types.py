@@ -4,6 +4,7 @@
 #   sea_level      height below which the surface is liquid (flat and glossy)
 #   land_specular  how glossy the solid surface is, 0..1 (default 0.04)
 #   glow           color the liquid gives off, visible on the night side
+#   ice_caps       polar ice that grows as the planet gets colder
 #   terrain        height field style, see surface.terrain_height (default rolling)
 PLANET_TYPES = {
     "lava": {
@@ -40,6 +41,7 @@ PLANET_TYPES = {
         "atmo_strength": 0.5,
         "sea_level": -0.01,
         "terrain": "continents",
+        "ice_caps": True,
     },
     "forest": {
         "base_color": (50, 150, 60),
@@ -49,6 +51,7 @@ PLANET_TYPES = {
         "atmo_strength": 0.45,
         "sea_level": -0.05,
         "terrain": "continents",
+        "ice_caps": True,
     },
     "desert": {
         "base_color": (230, 200, 100),
@@ -56,6 +59,7 @@ PLANET_TYPES = {
         "atmosphere": "thin",
         "atmo_color": (220, 180, 120),
         "atmo_strength": 0.25,
+        "ice_caps": True,
     },
     "gas_giant": {
         "base_color": (255, 180, 100),

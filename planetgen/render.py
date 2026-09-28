@@ -24,7 +24,7 @@ def render_planet(spec, size=512):
     geo = build_sphere_geometry(size, radius, orientation)
 
     # 2. Generate the surface material
-    surface = generate_surface(geo, planet_type, seed)
+    surface = generate_surface(geo, planet_type, seed, spec.temperature)
 
     # 3. Apply lighting
     light = light_direction(spec.light_azimuth, spec.light_elevation)
