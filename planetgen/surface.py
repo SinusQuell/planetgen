@@ -178,48 +178,106 @@ def terrain_height(px, py, pz, seed, offset, style):
     return hills * 1.1 + (ridges - 0.6) * 0.4 + detail * 0.2
 
 
+def _gas_giant_band_table(rng, palette, samples=2048):
+    """Color for every latitude, as a table from -1 (south) to 1 (north).
+
+    Bands have uneven widths, alternate between light zones and dark belts
+    and blend into each other over a short distance."""
+    count = rng.randint(14, 26)
+    # Evenly spaced edges, each nudged by up to 40% of a band width
+    spacing = 2.0 / count
+    edges = np.linspace(-1.0, 1.0, count + 1)
+    edges[1:-1] += rng.uniform(-0.4, 0.4, count - 1) * spacing
+    start_light = rng.rand() < 0.5
+
+    lat = np.linspace(-1.0, 1.0, samples)
+    table = np.zeros((samples, 3))
+    for i in range(count):
+        light = (i % 2 == 0) == start_light
+        choices = palette["zones"] if light else palette["belts"]
+        color = np.array(choices[rng.randint(len(choices))], dtype=np.float64)
+        color = color * rng.uniform(0.92, 1.06)
+        table[(lat >= edges[i]) & (lat <= edges[i + 1])] = color
+
+    # Faint sub-bands inside each band
+    fine = np.zeros(samples)
+    for freq in (37, 71, 131):
+        fine += np.sin(lat * freq + rng.uniform(0, 2 * math.pi)) * rng.uniform(0.01, 0.035)
+    table *= (1.0 + fine)[:, None]
+
+    # High latitudes fade into an even polar haze instead of rings of bands.
+    haze = table[np.abs(lat) < 0.2].mean(axis=0) * 0.85
+    polar = smoothstep(0.62, 0.9, np.abs(lat))[:, None]
+    table = table * (1.0 - polar) + haze * polar
+
+    # Soften the band edges with a box blur.
+    width = samples // 70
+    kernel = np.ones(width) / width
+    padded = np.pad(table, ((width, width), (0, 0)), mode="edge")
+    for ch in range(3):
+        table[:, ch] = np.convolve(padded[:, ch], kernel, mode="same")[width:-width]
+    # Where the color changes fast, bands meet and shear against each other.
+    shear = np.abs(np.gradient(table.sum(axis=1)))
+    shear = np.clip(shear / (shear.max() + 1e-9) * 3.0, 0.0, 1.0)
+    return lat, table, shear
+
+
 def _generate_gas_giant_surface(geo, seed, perm):
-    """Generate gas giant surface with latitude-based banding."""
+    """Gas giant: latitude bands sheared by turbulence, with oval storms."""
     px, py, pz = geo["px"], geo["py"], geo["pz"]
 
     rng = np.random.RandomState((seed + 5555) & 0x7FFFFFFF)
-    palette_idx = rng.randint(0, len(GAS_GIANT_PALETTES))
-    palette = GAS_GIANT_PALETTES[palette_idx]
-    num_bands = rng.randint(8, 16)
-    offx, offy, offz = rng.uniform(-1000, 1000, 3)
+    palette = GAS_GIANT_PALETTES[rng.randint(0, len(GAS_GIANT_PALETTES))]
+    offset = rng.uniform(-1000, 1000, 3)
+    table_lat, table, shear_table = _gas_giant_band_table(rng, palette)
 
-    # Perturb latitude with 3D noise for wavy bands
-    warp_perm = _build_perm_table(seed + 2000)
-    lat_warp = fbm_noise_3d(px * 3.0 + offx, py * 1.5 + offy, pz * 3.0 + offz,
-                             warp_perm, octaves=4, persistence=0.5) * 0.12
+    # Latitude as an angle, so bands near the poles are not squeezed.
+    lat = np.arcsin(np.clip(py, -1, 1)) / (math.pi / 2)
+    lon = np.arctan2(pz, px)
 
-    lat = py + lat_warp  # latitude from -1 to +1
+    # Stretched noise: slow waves along the bands and fine streaks.
+    ox, oy, oz = offset
+    waves = fbm_noise_3d(px * 2.5 + ox, py * 9.0 + oy, pz * 2.5 + oz,
+                         _build_perm_table(seed + 2000), octaves=4)
+    eddies = fbm_noise_3d(px * 7.0 + ox, py * 22.0 + oy, pz * 7.0 + oz,
+                          _build_perm_table(seed + 2100), octaves=5, persistence=0.6)
+    streaks = fbm_noise_3d(px * 5.0 + ox, py * 70.0 + oy, pz * 5.0 + oz,
+                           _build_perm_table(seed + 3000), octaves=4, persistence=0.55)
+    # Turbulence is strongest where bands meet and toward the chaotic poles.
+    shear = np.interp(lat + waves * 0.04, table_lat, shear_table)
+    polar = smoothstep(0.6, 0.95, np.abs(lat))
+    swirl = fbm_noise_3d(px * 12.0 + ox, py * 18.0 + oy, pz * 12.0 + oz,
+                         _build_perm_table(seed + 2200), octaves=4, persistence=0.55)
+    band_lat = (lat + waves * 0.04 + eddies * 0.012
+                + swirl * (0.006 + 0.03 * shear + 0.08 * polar))
 
-    # Band profile: sinusoidal banding
-    band_val = np.sin(lat * num_bands * math.pi)
-    # Normalize to 0-1
-    band_t = band_val * 0.5 + 0.5
+    # Storms: oval vortices that twist the bands around them.
+    storm_mix = np.zeros_like(lat)
+    for _ in range(rng.randint(1, 4)):
+        c_lat = rng.uniform(-0.6, 0.6)
+        c_lon = rng.uniform(-math.pi, math.pi)
+        size = rng.uniform(0.05, 0.14)
+        d_lon = (lon - c_lon + math.pi) % (2 * math.pi) - math.pi
+        local_x = d_lon * np.cos(lat * math.pi / 2) / (math.pi / 2)
+        local_y = lat - c_lat
+        # Storms are wider than they are tall.
+        dist = np.sqrt((local_x / 2.2) ** 2 + local_y ** 2) / size
+        twist = 2.4 * np.exp(-dist * dist) * rng.choice([-1, 1])
+        rotated_y = local_x * np.sin(twist) / 2.2 + local_y * np.cos(twist)
+        band_lat = band_lat + (rotated_y - local_y) * (dist < 2.5)
+        storm_mix = np.maximum(storm_mix, smoothstep(1.0, 0.55, dist) * rng.uniform(0.6, 0.95))
 
-    # Map band_t to palette colors via interpolation
-    n_colors = len(palette)
-    color_positions = np.linspace(0, 1, n_colors)
-    r_vals = np.array([c[0] for c in palette], dtype=np.float64)
-    g_vals = np.array([c[1] for c in palette], dtype=np.float64)
-    b_vals = np.array([c[2] for c in palette], dtype=np.float64)
+    color = np.stack([np.interp(band_lat, table_lat, table[:, ch]) for ch in range(3)], axis=-1)
+    color *= (1.0 + streaks * 0.07 + eddies * 0.08)[:, None]
 
-    r = np.interp(band_t, color_positions, r_vals)
-    g = np.interp(band_t, color_positions, g_vals)
-    b = np.interp(band_t, color_positions, b_vals)
+    storm_color = np.array(palette["storm"], dtype=np.float64)
+    color = color * (1.0 - storm_mix[:, None]) + storm_color * storm_mix[:, None]
 
-    # Add turbulence/storm detail
-    turb_perm = _build_perm_table(seed + 3000)
-    turbulence = fbm_noise_3d(px * 8.0 + offx, py * 4.0 + offy, pz * 8.0 + offz,
-                               turb_perm, octaves=5, persistence=0.55) * 25.0
-    r = np.clip(r + turbulence, 0, 255)
-    g = np.clip(g + turbulence * 0.8, 0, 255)
-    b = np.clip(b + turbulence * 0.5, 0, 255)
+    # Hazier, slightly darker poles
+    color *= (1.0 - 0.2 * polar)[:, None]
 
-    return r, g, b
+    color = np.clip(color, 0, 255)
+    return color[:, 0], color[:, 1], color[:, 2]
 
 
 # ── Cloud layer ──────────────────────────────────────────────────────────────
