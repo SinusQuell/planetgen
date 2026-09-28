@@ -50,6 +50,10 @@ def build_parser():
                         help="show city lights on the night side")
     cities.add_argument("--no-cities", dest="cities", action="store_false",
                         help="an uninhabited planet")
+    parser.add_argument("--moons", type=int, metavar="COUNT",
+                        help="number of moons (default: random, 0 to 5)")
+    parser.add_argument("--hide-moons", action="store_true",
+                        help="leave the moons out of the picture")
     parser.add_argument("-o", "--out", default="export",
                         help="output folder (default: export)")
     parser.add_argument("--open", action="store_true",
@@ -72,7 +76,8 @@ def spec_options(args):
     options = {"tilt": args.tilt, "inclination": args.inclination, "rotation": args.rotation,
                "relief": args.relief, "atmosphere_density": args.atmosphere,
                "clouds": args.clouds, "hue": args.hue,
-               "cities": args.cities}
+               "cities": args.cities, "moons": args.moons,
+               "show_moons": False if args.hide_moons else None}
     if args.light is not None:
         options["light_azimuth"], options["light_elevation"] = args.light
     return options

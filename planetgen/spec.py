@@ -38,6 +38,8 @@ class PlanetSpec:
     cities: bool
     # How strongly terrain height shades the surface; 0 renders it flat.
     relief: float = 1.0
+    # Draw the moons into the picture (they are always counted).
+    show_moons: bool = True
     # Multiplies how thick the planet type's atmosphere looks; 0 removes it.
     atmosphere_density: float = 1.0
 

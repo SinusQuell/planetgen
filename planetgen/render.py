@@ -7,6 +7,7 @@ from .geometry import build_sphere_geometry, orientation_matrix
 from .lighting import (
     apply_atmosphere, apply_lighting, atmosphere_color, light_direction, render_outer_glow,
 )
+from .moons import composite_moons, place_moons
 from .rings import RingSystem
 from .spec import PlanetSpec
 from .surface import generate_clouds, generate_surface
@@ -57,23 +58,29 @@ def render_planet(spec, size=512):
     planet_rgba[mask, :3] = np.clip(rgb, 0, 255).astype(np.uint8)
     planet_rgba[mask, 3] = np.round(geo["coverage"] * 255).astype(np.uint8)
 
-    # 7. Rings
-    if has_rings:
-        back_rings, front_rings = ring_system.render(size, radius, geo["pole"], light)
-        final = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-        if back_rings is not None:
-            final = Image.alpha_composite(final, _to_image(back_rings))
-        final = Image.alpha_composite(final, Image.fromarray(planet_rgba, "RGBA"))
-        if front_rings is not None:
-            final = Image.alpha_composite(final, _to_image(front_rings))
-    else:
-        final = Image.fromarray(planet_rgba, "RGBA")
-
-    # 8. Outer atmospheric glow
+    # 7. Stack the layers back to front: halo, far moons, far side of the
+    # rings, planet, near side of the rings, near moons.
+    final = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     glow = render_outer_glow(size, radius, light, air_color, air)
     if glow is not None:
-        final = Image.alpha_composite(_to_image(glow), final)
+        final = Image.alpha_composite(final, _to_image(glow))
 
+    moons = []
+    if spec.show_moons and spec.moons:
+        min_orbit = spec.ring_outer + 0.4 if has_rings else 1.8
+        moons = place_moons(spec.moons, seed, size, radius, orientation, min_orbit)
+    final = composite_moons(final, [m for m in moons if m["depth"] < 0], light)
+
+    back_rings = front_rings = None
+    if has_rings:
+        back_rings, front_rings = ring_system.render(size, radius, geo["pole"], light)
+    if back_rings is not None:
+        final = Image.alpha_composite(final, _to_image(back_rings))
+    final = Image.alpha_composite(final, Image.fromarray(planet_rgba, "RGBA"))
+    if front_rings is not None:
+        final = Image.alpha_composite(final, _to_image(front_rings))
+
+    final = composite_moons(final, [m for m in moons if m["depth"] >= 0], light)
     return final
 
 

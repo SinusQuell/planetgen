@@ -52,6 +52,12 @@ def test_ring_override(rings):
     assert meta["rings"] is rings
 
 
+def test_moons_can_be_hidden():
+    shown, _ = render_planet_image(size=128, seed=3, moons=4, rings=False)
+    hidden, _ = render_planet_image(size=128, seed=3, moons=4, rings=False, show_moons=False)
+    assert not np.array_equal(pixels(shown), pixels(hidden))
+
+
 def test_cli_writes_image_and_metadata(tmp_path):
     assert main(["--seed", "9", "--size", "64", "--out", str(tmp_path), "-q"]) == 0
     pngs = list(tmp_path.glob("*.png"))
