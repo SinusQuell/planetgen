@@ -53,29 +53,25 @@ def perlin_noise_3d(x, y, z, perm):
     ba = perm[b] + zi
     bb = perm[b + 1] + zi
 
-    # Gradient indices (mod 12) for each corner
-    g000 = perm[aa] % 12
-    g001 = perm[aa + 1] % 12
-    g010 = perm[ab] % 12
-    g011 = perm[ab + 1] % 12
-    g100 = perm[ba] % 12
-    g101 = perm[ba + 1] % 12
-    g110 = perm[bb] % 12
-    g111 = perm[bb + 1] % 12
+    # Gradient components per hash value, looked up once per call instead
+    # of indexing a (N, 3) array for every corner.
+    grad = _GRAD3[perm % 12]
+    gx, gy, gz = grad[:, 0], grad[:, 1], grad[:, 2]
 
-    # Dot products of gradient vectors with distance vectors
-    def dot_grad(g_idx, dx, dy, dz):
-        g = _GRAD3[g_idx]
-        return g[..., 0] * dx + g[..., 1] * dy + g[..., 2] * dz
+    def dot_grad(h, dx, dy, dz):
+        return gx[h] * dx + gy[h] * dy + gz[h] * dz
 
-    n000 = dot_grad(g000, xf,       yf,       zf)
-    n100 = dot_grad(g100, xf - 1.0, yf,       zf)
-    n010 = dot_grad(g010, xf,       yf - 1.0, zf)
-    n110 = dot_grad(g110, xf - 1.0, yf - 1.0, zf)
-    n001 = dot_grad(g001, xf,       yf,       zf - 1.0)
-    n101 = dot_grad(g101, xf - 1.0, yf,       zf - 1.0)
-    n011 = dot_grad(g011, xf,       yf - 1.0, zf - 1.0)
-    n111 = dot_grad(g111, xf - 1.0, yf - 1.0, zf - 1.0)
+    xf1 = xf - 1.0
+    yf1 = yf - 1.0
+    zf1 = zf - 1.0
+    n000 = dot_grad(aa,     xf,  yf,  zf)
+    n100 = dot_grad(ba,     xf1, yf,  zf)
+    n010 = dot_grad(ab,     xf,  yf1, zf)
+    n110 = dot_grad(bb,     xf1, yf1, zf)
+    n001 = dot_grad(aa + 1, xf,  yf,  zf1)
+    n101 = dot_grad(ba + 1, xf1, yf,  zf1)
+    n011 = dot_grad(ab + 1, xf,  yf1, zf1)
+    n111 = dot_grad(bb + 1, xf1, yf1, zf1)
 
     # Trilinear interpolation
     nx00 = n000 + u * (n100 - n000)
