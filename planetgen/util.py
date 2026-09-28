@@ -21,3 +21,18 @@ def color_ramp_lookup(height, ramp):
     b = np.interp(height, thresholds, b_vals)
 
     return r, g, b
+
+
+def shift_hue(rgb, degrees, saturation=1.0):
+    """Rotate the hue of (N, 3) colors and scale their saturation, keeping
+    brightness. Works in YIQ space, where hue is an angle in the IQ plane."""
+    if degrees == 0 and saturation == 1.0:
+        return rgb
+    to_yiq = np.array([[0.299, 0.587, 0.114],
+                       [0.596, -0.274, -0.322],
+                       [0.211, -0.523, 0.312]])
+    angle = np.radians(degrees)
+    c, s = np.cos(angle) * saturation, np.sin(angle) * saturation
+    rotate = np.array([[1, 0, 0], [0, c, -s], [0, s, c]])
+    matrix = np.linalg.inv(to_yiq) @ rotate @ to_yiq
+    return np.clip(rgb @ matrix.T, 0, 255)

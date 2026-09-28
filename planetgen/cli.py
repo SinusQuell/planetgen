@@ -39,6 +39,8 @@ def build_parser():
                         help="spin around the axis in degrees, shows a different side")
     parser.add_argument("--relief", type=float,
                         help="terrain shading strength (default 1, 0 = flat)")
+    parser.add_argument("--hue", type=float, metavar="DEGREES",
+                        help="rotate the surface colors, e.g. 180 for an alien palette")
     parser.add_argument("--clouds", type=float, metavar="COVER",
                         help="cloud cover from 0 to 1 (types without weather ignore it)")
     parser.add_argument("--atmosphere", type=float, metavar="DENSITY",
@@ -64,7 +66,7 @@ def spec_options(args):
     """PlanetSpec overrides from the command line."""
     options = {"tilt": args.tilt, "inclination": args.inclination, "rotation": args.rotation,
                "relief": args.relief, "atmosphere_density": args.atmosphere,
-               "clouds": args.clouds}
+               "clouds": args.clouds, "hue": args.hue}
     if args.light is not None:
         options["light_azimuth"], options["light_elevation"] = args.light
     return options

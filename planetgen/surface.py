@@ -7,7 +7,7 @@ import numpy as np
 
 from .noise import _build_perm_table, fbm_noise_3d, ridged_noise_3d
 from .types import COLOR_RAMPS, GAS_GIANT_PALETTES, PLANET_TYPES
-from .util import color_ramp_lookup, smoothstep
+from .util import color_ramp_lookup, shift_hue, smoothstep
 
 
 @dataclass
@@ -20,10 +20,11 @@ class Surface:
     emission: np.ndarray = None  # (N, 3) light given off, 0..255, or None
 
 
-def generate_surface(geo, planet_type, seed, temperature=None):
+def generate_surface(geo, planet_type, seed, temperature=None, hue=0.0):
     """Generate the surface material for all masked pixels.
 
     temperature (°C) sizes the polar ice caps on types that have them.
+    hue rotates the ground colors by that many degrees.
     """
     px, py, pz = geo["px"], geo["py"], geo["pz"]
     perm = _build_perm_table(seed)
@@ -32,6 +33,7 @@ def generate_surface(geo, planet_type, seed, temperature=None):
 
     if planet_type == "gas_giant":
         color = np.stack(_generate_gas_giant_surface(geo, seed, perm), axis=-1)
+        color = shift_hue(color, hue)
         n = len(color)
         return Surface(color, np.zeros(n), np.full(n, land_specular), np.zeros(n, dtype=bool))
 
@@ -60,6 +62,7 @@ def generate_surface(geo, planet_type, seed, temperature=None):
     b = np.clip(b + variation * 0.6, 0, 255)
     color = np.stack([r, g, b], axis=-1)
     color *= (1.0 - 0.18 * crater_floor)[:, None]
+    color = shift_hue(color, hue)
 
     sea_level = traits.get("sea_level")
     if sea_level is None:

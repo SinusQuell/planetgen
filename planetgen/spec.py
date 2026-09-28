@@ -31,6 +31,9 @@ class PlanetSpec:
     ring_outer: float
     # Fraction of the sky covered by clouds, 0..1.
     clouds: float
+    # Degrees to rotate the ground colors by. Small by default; large values
+    # give alien color schemes.
+    hue: float
     # How strongly terrain height shades the surface; 0 renders it flat.
     relief: float = 1.0
     # Multiplies how thick the planet type's atmosphere looks; 0 removes it.
@@ -74,6 +77,7 @@ class PlanetSpec:
         values["ring_inner"] = round(rng.uniform(1.3, 1.5), 2)
         values["ring_outer"] = round(rng.uniform(1.9, 2.4), 2)
         values["clouds"] = round(rng.uniform(*traits.get("clouds", (0.0, 0.0))), 2)
+        values["hue"] = round(rng.uniform(-12, 12), 1)
 
         unknown = set(overrides) - {f.name for f in fields(cls)}
         if unknown:
