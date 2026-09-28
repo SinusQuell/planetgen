@@ -96,6 +96,9 @@ def apply_lighting(surface, geo, light, shadow=None, relief=1.0):
 
     light_factor = ambient + diffuse * limb
     rgb = surface.color * light_factor[:, None] + (specular * 255.0)[:, None]
+    if surface.emission is not None:
+        # Glow shows most where the sun is not already washing it out.
+        rgb = rgb + surface.emission * (1.0 - 0.6 * diffuse)[:, None]
     return np.clip(rgb, 0, 255), diffuse
 
 

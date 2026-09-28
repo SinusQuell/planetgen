@@ -17,6 +17,7 @@ class Surface:
     height: np.ndarray    # (N,) terrain height, liquids flattened to sea level
     specular: np.ndarray  # (N,) glossiness, 0..1
     liquid: np.ndarray    # (N,) bool, True for seas (water, lava, acid)
+    emission: np.ndarray = None  # (N, 3) light given off, 0..255, or None
 
 
 def generate_surface(geo, planet_type, seed):
@@ -57,10 +58,19 @@ def generate_surface(geo, planet_type, seed):
         liquid = np.zeros(len(height), dtype=bool)
     else:
         liquid = height < sea_level
+        raw_height = height
         height = np.maximum(height, sea_level)
     specular = np.where(liquid, 0.8, land_specular)
 
-    return Surface(color, height, specular, liquid)
+    emission = None
+    glow = traits.get("glow")
+    if glow is not None and sea_level is not None:
+        # Deeper channels glow hotter; the shores cool off into the crust.
+        depth = sea_level - raw_height
+        heat = smoothstep(-0.03, 0.25, depth)
+        emission = np.array(glow, dtype=np.float64) * heat[:, None]
+
+    return Surface(color, height, specular, liquid, emission)
 
 
 def _noise(kind, px, py, pz, scale, offset, seed, **kwargs):

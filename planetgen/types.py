@@ -3,6 +3,7 @@
 # Optional material keys per type:
 #   sea_level      height below which the surface is liquid (flat and glossy)
 #   land_specular  how glossy the solid surface is, 0..1 (default 0.04)
+#   glow           color the liquid gives off, visible on the night side
 #   terrain        height field style, see surface.terrain_height (default rolling)
 PLANET_TYPES = {
     "lava": {
@@ -14,6 +15,7 @@ PLANET_TYPES = {
         "sea_level": -0.05,
         "land_specular": 0.03,
         "terrain": "cracked",
+        "glow": (255, 120, 30),
     },
     "barren": {
         "base_color": (180, 140, 100),
@@ -71,6 +73,7 @@ PLANET_TYPES = {
         "atmo_strength": 0.4,
         "sea_level": -0.05,
         "terrain": "cracked",
+        "glow": (60, 190, 45),
     },
     "crystal": {
         "base_color": (180, 255, 255),
@@ -89,6 +92,7 @@ PLANET_TYPES = {
         "sea_level": -0.05,
         "land_specular": 0.03,
         "terrain": "cracked",
+        "glow": (255, 90, 20),
     },
 }
 
