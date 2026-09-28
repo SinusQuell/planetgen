@@ -27,6 +27,10 @@ def build_parser():
                        help="always give the planet rings")
     rings.add_argument("--no-rings", dest="rings", action="store_false",
                        help="never give the planet rings")
+    parser.add_argument("--light", nargs=2, type=float, metavar=("AZIMUTH", "ELEVATION"),
+                        help="sun direction in degrees: azimuth counterclockwise from the "
+                             "right edge, elevation toward the viewer (90 = fully lit, "
+                             "0 = half lit, negative = crescent)")
     parser.add_argument("-o", "--out", default="export",
                         help="output folder (default: export)")
     parser.add_argument("--open", action="store_true",
@@ -42,6 +46,13 @@ def list_types():
     for name, traits in sorted(PLANET_TYPES.items()):
         low, high = traits["temperature"]
         print(f"  {name:<10} {low:>5} to {high:>5} C, atmosphere: {traits['atmosphere']}")
+
+
+def light_options(args):
+    if args.light is None:
+        return {}
+    azimuth, elevation = args.light
+    return {"light_azimuth": azimuth, "light_elevation": elevation}
 
 
 def main(argv=None):
@@ -63,6 +74,7 @@ def main(argv=None):
         seed = None if args.seed is None else args.seed + i
         image, metadata = render_planet_image(
             size=args.size, seed=seed, planet_type=args.type, rings=args.rings,
+            **light_options(args),
         )
         image_path, json_path = save_planet(image, metadata, args.out)
 

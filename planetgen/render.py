@@ -4,7 +4,7 @@ import numpy as np
 from PIL import Image
 
 from .geometry import build_sphere_geometry
-from .lighting import apply_atmosphere, apply_lighting, render_outer_glow
+from .lighting import apply_atmosphere, apply_lighting, light_direction, render_outer_glow
 from .rings import render_rings
 from .spec import PlanetSpec
 from .surface import generate_clouds, generate_surface
@@ -26,7 +26,8 @@ def render_planet(spec, size=512):
     r, g, b = generate_surface(geo, planet_type, seed)
 
     # 3. Apply lighting
-    r, g, b, diffuse = apply_lighting(r, g, b, geo, planet_type)
+    light = light_direction(spec.light_azimuth, spec.light_elevation)
+    r, g, b, diffuse = apply_lighting(r, g, b, geo, planet_type, light)
 
     # 4. Add clouds (before atmosphere, after lighting)
     if planet_type in ("ocean", "forest", "ice", "desert"):
@@ -45,7 +46,7 @@ def render_planet(spec, size=512):
     planet_rgba[mask, 0] = np.clip(r, 0, 255).astype(np.uint8)
     planet_rgba[mask, 1] = np.clip(g, 0, 255).astype(np.uint8)
     planet_rgba[mask, 2] = np.clip(b, 0, 255).astype(np.uint8)
-    planet_rgba[mask, 3] = 255
+    planet_rgba[mask, 3] = np.round(geo["coverage"] * 255).astype(np.uint8)
 
     # 7. Rings
     if has_rings:

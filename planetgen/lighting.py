@@ -5,28 +5,36 @@ import math
 import numpy as np
 
 
-def apply_lighting(r, g, b, geo, planet_type):
+def light_direction(azimuth, elevation):
+    """Unit vector toward the sun in image space (x right, y down, z toward
+    the viewer). azimuth: degrees counterclockwise from the right edge of the
+    image. elevation: degrees out of the image plane toward the viewer; 90
+    lights the planet head-on, 0 gives a half-lit disc, negative values a
+    crescent."""
+    az = math.radians(azimuth)
+    el = math.radians(elevation)
+    return (math.cos(el) * math.cos(az), -math.cos(el) * math.sin(az), math.sin(el))
+
+
+def apply_lighting(r, g, b, geo, planet_type, light):
     """Apply Lambertian diffuse + Blinn-Phong specular + limb darkening.
 
     Returns (r, g, b, diffuse) where diffuse is the raw diffuse factor for cloud lighting.
     """
     nx, ny, nz = geo["nx"], geo["ny"], geo["nz"]
+    lx, ly, lz = light
 
-    # Light from upper-right, toward camera
-    lx, ly, lz = 0.6, -0.4, 0.8
-    l_len = math.sqrt(lx * lx + ly * ly + lz * lz)
-    lx /= l_len
-    ly /= l_len
-    lz /= l_len
+    # Wrap the diffuse term slightly so the day/night line is soft rather
+    # than a hard cut.
+    wrap = 0.08
+    n_dot_l = nx * lx + ny * ly + nz * lz
+    diffuse = np.clip((n_dot_l + wrap) / (1.0 + wrap), 0.0, 1.0)
 
-    # Diffuse (Lambertian)
-    diffuse = np.clip(nx * lx + ny * ly + nz * lz, 0.0, 1.0)
-
-    # Limb darkening
-    limb = np.sqrt(nz)
+    # Limb darkening, kept mild so the lit edge still reads as bright
+    limb = 0.35 + 0.65 * np.sqrt(nz)
 
     # Ambient
-    ambient = 0.1
+    ambient = 0.03
 
     # Specular (Blinn-Phong)
     vx, vy, vz = 0.0, 0.0, 1.0
@@ -38,7 +46,7 @@ def apply_lighting(r, g, b, geo, planet_type):
 
     n_dot_h = np.clip(nx * hx + ny * hy + nz * hz, 0.0, 1.0)
     shininess = 10.0 if planet_type == "gas_giant" else 30.0
-    specular = np.power(n_dot_h, shininess) * 0.25
+    specular = np.power(n_dot_h, shininess) * 0.25 * (n_dot_l > 0)
 
     # Combine
     light_factor = ambient + diffuse * limb

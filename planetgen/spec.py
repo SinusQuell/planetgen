@@ -18,6 +18,9 @@ class PlanetSpec:
     # Planet radius as a fraction of the image width, so the same seed looks
     # the same at every image size.
     scale: float
+    # Direction of the sun, see lighting.light_direction.
+    light_azimuth: float
+    light_elevation: float
 
     @property
     def atmosphere(self):
@@ -46,6 +49,9 @@ class PlanetSpec:
         if ringed is None:
             ringed = values["rings"]
         values["scale"] = rng.uniform(0.22, 0.30) if ringed else rng.uniform(0.30, 0.45)
+        # New rolls go at the end so older seeds keep their earlier values.
+        values["light_azimuth"] = round(rng.uniform(15, 165), 1)
+        values["light_elevation"] = round(rng.uniform(15, 60), 1)
 
         unknown = set(overrides) - {f.name for f in fields(cls)}
         if unknown:
